@@ -1,31 +1,32 @@
-import { Trace } from '@uniswap/analytics'
-import { PageName } from '@uniswap/analytics-events'
+import { InterfacePageName } from '@uniswap/analytics-events'
 import { useWeb3React } from '@web3-react/core'
+import { Trace } from 'analytics'
 import Column from 'components/Column'
 import { OpacityHoverState } from 'components/Common'
 import Row from 'components/Row'
 import { LoadingBubble } from 'components/Tokens/loading'
-import { useLoadAssetsQuery } from 'graphql/data/nft/Asset'
-import { useCollectionQuery, useLoadCollectionQuery } from 'graphql/data/nft/Collection'
+import { useCollection } from 'graphql/data/nft/Collection'
 import { useScreenSize } from 'hooks/useScreenSize'
 import { BAG_WIDTH, XXXL_BAG_WIDTH } from 'nft/components/bag/Bag'
 import { MobileHoverBag } from 'nft/components/bag/MobileHoverBag'
 import { Activity, ActivitySwitcher, CollectionNfts, CollectionStats, Filters } from 'nft/components/collection'
 import { CollectionNftsAndMenuLoading } from 'nft/components/collection/CollectionNfts'
 import { CollectionPageSkeleton } from 'nft/components/collection/CollectionPageSkeleton'
+import { UnavailableCollectionPage } from 'nft/components/collection/UnavailableCollectionPage'
 import { BagCloseIcon } from 'nft/components/icons'
 import { useBag, useCollectionFilters, useFiltersExpanded, useIsMobile } from 'nft/hooks'
 import * as styles from 'nft/pages/collection/index.css'
-import { GenieCollection } from 'nft/types'
+import { blocklistedCollections } from 'nft/utils'
 import { Suspense, useEffect } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { animated, easings, useSpring } from 'react-spring'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 import { TRANSITION_DURATIONS } from 'theme/styles'
 import { Z_INDEX } from 'theme/zIndex'
 
 const FILTER_WIDTH = 332
+const EMPTY_TRAIT_OBJ = {}
 
 export const CollectionBannerLoading = styled(LoadingBubble)`
   width: 100%;
@@ -85,8 +86,8 @@ const FiltersContainer = styled.div<{ isMobile: boolean; isFiltersExpanded: bool
   left: 0px;
   width: ${({ isMobile }) => (isMobile ? '100%' : '0px')};
   height: ${({ isMobile, isFiltersExpanded }) => (isMobile && isFiltersExpanded ? '100%' : undefined)};
-  background: ${({ theme, isMobile }) => (isMobile ? theme.backgroundBackdrop : undefined)};
-  z-index: ${Z_INDEX.modalBackdrop};
+  background: ${({ theme, isMobile }) => (isMobile ? theme.surface2 : undefined)};
+  z-index: ${Z_INDEX.modalBackdrop - 3};
   overflow-y: ${({ isMobile }) => (isMobile ? 'scroll' : undefined)};
 
   @media screen and (min-width: ${({ theme }) => theme.breakpoint.sm}px) {
@@ -111,7 +112,7 @@ const IconWrapper = styled.button`
   background-color: transparent;
   border-radius: 8px;
   border: none;
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
   cursor: pointer;
   display: flex;
   padding: 2px 0px;
@@ -133,7 +134,7 @@ const Collection = () => {
   const { chainId } = useWeb3React()
   const screenSize = useScreenSize()
 
-  const collectionStats = useCollectionQuery(contractAddress as string)
+  const { data: collectionStats, loading } = useCollection(contractAddress as string)
 
   const { CollectionContainerWidthChange } = useSpring({
     CollectionContainerWidthChange:
@@ -169,6 +170,9 @@ const Collection = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  if (loading) return <CollectionPageSkeleton />
+  if (!collectionStats.name) return <UnavailableCollectionPage />
+
   const toggleActivity = () => {
     isActivityToggled
       ? navigate(`/nfts/collection/${contractAddress}`)
@@ -178,7 +182,7 @@ const Collection = () => {
   return (
     <>
       <Trace
-        page={PageName.NFT_COLLECTION_PAGE}
+        page={InterfacePageName.NFT_COLLECTION_PAGE}
         properties={{ collection_address: contractAddress, chain_id: chainId, is_activity_view: isActivityToggled }}
         shouldLogImpression
       >
@@ -187,7 +191,7 @@ const Collection = () => {
             width: CollectionContainerWidthChange.to((x) => `calc(100% - ${x as number}px)`),
           }}
         >
-          {contractAddress ? (
+          {contractAddress && !blocklistedCollections.includes(contractAddress) ? (
             <>
               <BannerWrapper>
                 <Banner
@@ -197,9 +201,7 @@ const Collection = () => {
                 />
               </BannerWrapper>
               <CollectionDescriptionSection>
-                {collectionStats && (
-                  <CollectionStats stats={collectionStats || ({} as GenieCollection)} isMobile={isMobile} />
-                )}
+                {collectionStats && <CollectionStats stats={collectionStats} isMobile={isMobile} />}
                 <div id="nft-anchor" />
                 <ActivitySwitcher
                   showActivity={isActivityToggled}
@@ -221,7 +223,7 @@ const Collection = () => {
                           </IconWrapper>
                         </MobileFilterHeader>
                       )}
-                      <Filters traitsByGroup={collectionStats?.traits ?? {}} />
+                      <Filters traitsByGroup={collectionStats?.traits ?? EMPTY_TRAIT_OBJ} />
                     </>
                   )}
                 </FiltersContainer>
@@ -246,7 +248,7 @@ const Collection = () => {
                       collectionStats && (
                         <Suspense fallback={<CollectionNftsAndMenuLoading />}>
                           <CollectionNfts
-                            collectionStats={collectionStats || ({} as GenieCollection)}
+                            collectionStats={collectionStats}
                             contractAddress={contractAddress}
                             rarityVerified={collectionStats?.rarityVerified}
                           />
@@ -256,7 +258,7 @@ const Collection = () => {
               </CollectionDisplaySection>
             </>
           ) : (
-            <div className={styles.noCollectionAssets}>No collection assets exist at this address</div>
+            <UnavailableCollectionPage isBlocked />
           )}
         </AnimatedCollectionContainer>
       </Trace>
@@ -265,21 +267,4 @@ const Collection = () => {
   )
 }
 
-// The page is responsible for any queries that must be run on initial load.
-// Triggering query load from the page prevents waterfalled requests, as lazy-loading them in components would prevent
-// any children from rendering.
-const CollectionPage = () => {
-  const { contractAddress } = useParams()
-  useLoadCollectionQuery(contractAddress)
-  useLoadAssetsQuery(contractAddress)
-
-  // The Collection must be wrapped in suspense so that it does not suspend the CollectionPage,
-  // which is needed to trigger query loads.
-  return (
-    <Suspense fallback={<CollectionPageSkeleton />}>
-      <Collection />
-    </Suspense>
-  )
-}
-
-export default CollectionPage
+export default Collection

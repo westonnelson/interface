@@ -1,12 +1,9 @@
-import { useLoadCollectionQuery } from 'graphql/data/nft/Collection'
-import { fetchTrendingCollections } from 'nft/queries'
-import { TimePeriod } from 'nft/types'
+import { HistoryDuration } from 'graphql/data/__generated__/types-and-hooks'
+import { useTrendingCollections } from 'graphql/data/nft/TrendingCollections'
 import { calculateCardIndex } from 'nft/utils'
-import { Suspense, useCallback, useMemo, useState } from 'react'
-import { useQuery } from 'react-query'
+import { useCallback, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import styled from 'styled-components/macro'
-import { opacify } from 'theme/utils'
+import styled from 'styled-components'
 
 import { Carousel, LoadingCarousel } from './Carousel'
 import { CarouselCard, LoadingCarouselCard } from './CarouselCard'
@@ -23,36 +20,13 @@ const BannerContainer = styled.div`
   }
 `
 
-const AbsoluteFill = styled.div`
-  position: absolute;
-  top: -96px;
-  left: 0;
-  right: 0;
-  bottom: 0;
-`
-
-// Safari has issues with blur / overflow, forcing GPU rendering with `translate3d` fixes it
-// https://stackoverflow.com/a/71353198
-const BannerBackground = styled(AbsoluteFill)<{ backgroundImage: string }>`
-  transform: translate3d(0, 0, 0) scaleY(1.1);
-
-  background-image: ${(props) => `url(${props.backgroundImage})`};
-  filter: blur(62px);
-
-  opacity: ${({ theme }) => (theme.darkMode ? 0.3 : 0.2)};
-`
-
-const PlainBackground = styled(AbsoluteFill)`
-  background: ${({ theme }) => `linear-gradient(${opacify(10, theme.userThemeColor)}, transparent)`};
-`
-
 const BannerMainArea = styled.div`
   display: flex;
   flex-direction: row;
   width: 100%;
   height: 100%;
   gap: 36px;
-  max-width: 1200px;
+  max-width: ${({ theme }) => theme.maxWidth};
   justify-content: space-between;
   z-index: 2;
 
@@ -68,14 +42,14 @@ const BannerMainArea = styled.div`
 const HeaderContainer = styled.div`
   display: flex;
   max-width: 500px;
-  font-weight: 500;
+  font-weight: 535;
   font-size: 72px;
   line-height: 88px;
   align-self: center;
   flex-shrink: 0;
   padding-bottom: 32px;
 
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
 
   @media only screen and (max-width: ${({ theme }) => `${theme.breakpoint.lg}px`}) {
     font-size: 48px;
@@ -116,30 +90,16 @@ const TRENDING_COLLECTION_SIZE = 5
 const Banner = () => {
   const navigate = useNavigate()
 
-  const { data } = useQuery(
-    ['trendingCollections'],
-    () => {
-      return fetchTrendingCollections({
-        volumeType: 'eth',
-        timePeriod: TimePeriod.OneDay,
-        size: TRENDING_COLLECTION_SIZE + EXCLUDED_COLLECTIONS.length,
-      })
-    },
-    {
-      refetchOnReconnect: false,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    }
+  const { data: trendingCollections } = useTrendingCollections(
+    TRENDING_COLLECTION_SIZE + EXCLUDED_COLLECTIONS.length,
+    HistoryDuration.Day
   )
 
-  const collections = useMemo(
-    () => data?.filter((collection) => !EXCLUDED_COLLECTIONS.includes(collection.address)).slice(0, 5),
-    [data]
-  )
-
-  // Trigger queries for the top trending collections, so that the data is immediately available if the user clicks through.
-  const collectionAddresses = useMemo(() => collections?.map(({ address }) => address), [collections])
-  useLoadCollectionQuery(collectionAddresses)
+  const collections = useMemo(() => {
+    return trendingCollections
+      ?.filter((collection) => collection.address && !EXCLUDED_COLLECTIONS.includes(collection.address))
+      .slice(0, TRENDING_COLLECTION_SIZE)
+  }, [trendingCollections])
 
   const [activeCollectionIdx, setActiveCollectionIdx] = useState(0)
   const onToggleNextSlide = useCallback(
@@ -150,17 +110,8 @@ const Banner = () => {
     [collections]
   )
 
-  const activeCollection = collections?.[activeCollectionIdx]
-
   return (
     <BannerContainer>
-      {activeCollection ? (
-        activeCollection.bannerImageUrl ? (
-          <BannerBackground backgroundImage={activeCollection.bannerImageUrl} />
-        ) : (
-          <PlainBackground />
-        )
-      ) : null}
       <BannerMainArea>
         <HeaderContainer>
           Better prices. <br />
@@ -169,13 +120,11 @@ const Banner = () => {
         {collections ? (
           <Carousel activeIndex={activeCollectionIdx} toggleNextSlide={onToggleNextSlide}>
             {collections.map((collection) => (
-              <Suspense fallback={<LoadingCarouselCard collection={collection} />} key={collection.address}>
-                <CarouselCard
-                  key={collection.address}
-                  collection={collection}
-                  onClick={() => navigate(`/nfts/collection/${collection.address}`)}
-                />
-              </Suspense>
+              <CarouselCard
+                key={collection.address}
+                collection={collection}
+                onClick={() => navigate(`/nfts/collection/${collection.address}`)}
+              />
             ))}
           </Carousel>
         ) : (

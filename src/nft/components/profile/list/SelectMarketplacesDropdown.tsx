@@ -6,10 +6,11 @@ import { Checkbox } from 'nft/components/layout/Checkbox'
 import { buttonTextMedium, caption } from 'nft/css/common.css'
 import { themeVars } from 'nft/css/sprinkles.css'
 import { ListingMarket } from 'nft/types'
+import { getMarketplaceIcon } from 'nft/utils'
 import { ListingMarkets } from 'nft/utils/listNfts'
 import { Dispatch, FormEvent, useMemo, useReducer, useRef } from 'react'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 import { Z_INDEX } from 'theme/zIndex'
 
 const MarketplaceRowWrapper = styled(Row)`
@@ -20,20 +21,13 @@ const MarketplaceRowWrapper = styled(Row)`
   justify-content: space-between;
   padding: 0px 16px;
   &:hover {
-    background-color: ${({ theme }) => theme.backgroundInteractive};
+    background-color: ${({ theme }) => theme.surface3};
   }
   border-radius: 12px;
 `
 
-const MarketplaceDropdownIcon = styled.img`
-  width: 24px;
-  height: 24px;
-  border-radius: 4px;
-  object-fit: cover;
-`
-
 const FeeText = styled.div`
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
 `
 
 interface MarketplaceRowProps {
@@ -60,7 +54,7 @@ const MarketplaceRow = ({ market, setSelectedMarkets, selectedMarkets }: Marketp
   return (
     <MarketplaceRowWrapper onMouseEnter={toggleHovered} onMouseLeave={toggleHovered} onClick={toggleSelected}>
       <Row gap="12" onClick={toggleSelected}>
-        <MarketplaceDropdownIcon alt={market.name} src={market.icon} />
+        {getMarketplaceIcon(market.name, '24')}
         <Column>
           <ThemedText.BodyPrimary>{market.name}</ThemedText.BodyPrimary>
           <FeeText className={caption}>{market.fee}% fee</FeeText>
@@ -79,10 +73,10 @@ const HeaderButtonWrap = styled(Row)`
   border-radius: 12px;
   width: 180px;
   justify-content: space-between;
-  background: ${({ theme }) => theme.backgroundModule};
+  background: ${({ theme }) => theme.surface3};
   cursor: pointer;
   &:hover {
-    background-color: ${({ theme }) => theme.backgroundInteractive};
+    opacity: ${({ theme }) => theme.opacity.hover};
   }
   @media screen and (min-width: ${SMALL_MEDIA_BREAKPOINT}) {
     width: 220px;
@@ -93,12 +87,11 @@ const HeaderButtonContentWrapper = styled.div`
   display: flex;
 `
 
-const MarketIcon = styled.img<{ index: number; totalSelected: number }>`
+const MarketIcon = styled.div<{ index: number; totalSelected: number }>`
   height: 20px;
   width: 20px;
   margin-right: 8px;
-  border: 1px solid;
-  border-color: ${({ theme }) => theme.backgroundInteractive};
+  outline: 1px solid ${({ theme }) => theme.surface3};
   border-radius: 4px;
   z-index: ${({ index, totalSelected }) => totalSelected - index};
   margin-left: ${({ index }) => `${index === 0 ? 0 : -18}px`};
@@ -107,7 +100,7 @@ const MarketIcon = styled.img<{ index: number; totalSelected: number }>`
 const Chevron = styled(ChevronUpIcon)<{ isOpen: boolean }>`
   height: 20px;
   width: 20px;
-  fill: ${({ theme }) => theme.textPrimary};
+  fill: ${({ theme }) => theme.neutral1};
   transition: ${({
     theme: {
       transition: { duration },
@@ -124,7 +117,7 @@ const ModalWrapper = styled.div`
 
 const DropdownWrapper = styled(Column)<{ isOpen: boolean }>`
   padding: 16px 0px;
-  background-color: ${({ theme }) => theme.backgroundModule};
+  background-color: ${({ theme }) => theme.surface1};
   display: ${({ isOpen }) => (isOpen ? 'flex' : 'none')};
   position: absolute;
   top: 52px;
@@ -132,6 +125,8 @@ const DropdownWrapper = styled(Column)<{ isOpen: boolean }>`
   border-radius: 12px;
   gap: 12px;
   z-index: ${Z_INDEX.modalBackdrop};
+  box-shadow: ${({ theme }) => theme.deprecated_deepShadow};
+  border: 0.5px solid ${({ theme }) => theme.surface3};
 `
 
 export const SelectMarketplacesDropdown = ({
@@ -154,19 +149,15 @@ export const SelectMarketplacesDropdown = ({
         <HeaderButtonContentWrapper>
           {selectedMarkets.map((market, index) => {
             return (
-              <MarketIcon
-                key={index}
-                alt={market.name}
-                src={market.icon}
-                totalSelected={selectedMarkets.length}
-                index={index}
-              />
+              <MarketIcon key={index} totalSelected={selectedMarkets.length} index={index}>
+                {getMarketplaceIcon(market.name, '20')}
+              </MarketIcon>
             )
           })}
           {dropdownDisplayText}
         </HeaderButtonContentWrapper>
 
-        <Chevron isOpen={isOpen} secondaryColor={themeVars.colors.textPrimary} />
+        <Chevron isOpen={isOpen} secondaryColor={themeVars.colors.neutral1} />
       </HeaderButtonWrap>
       <DropdownWrapper isOpen={isOpen}>
         {ListingMarkets.map((market) => {

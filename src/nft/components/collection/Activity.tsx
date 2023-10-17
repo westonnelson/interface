@@ -1,16 +1,14 @@
 import { OpacityHoverState } from 'components/Common'
+import { NftActivityType } from 'graphql/data/__generated__/types-and-hooks'
+import { useNftActivity } from 'graphql/data/nft/NftActivity'
 import { Box } from 'nft/components/Box'
 import { Column, Row } from 'nft/components/Flex'
-import { themeVars, vars } from 'nft/css/sprinkles.css'
-import { useBag, useIsMobile } from 'nft/hooks'
-import { ActivityFetcher } from 'nft/queries/genie/ActivityFetcher'
-import { ActivityEvent, ActivityEventResponse, ActivityEventType } from 'nft/types'
-import { fetchPrice } from 'nft/utils/fetchPrice'
-import { useCallback, useEffect, useMemo, useReducer, useState } from 'react'
+import { useBag, useIsMobile, useNativeUsdPrice } from 'nft/hooks'
+import { ActivityEventType } from 'nft/types'
+import { useCallback, useReducer } from 'react'
 import InfiniteScroll from 'react-infinite-scroll-component'
-import { useInfiniteQuery } from 'react-query'
-import { useIsDarkMode } from 'state/user/hooks'
-import styled from 'styled-components/macro'
+import { Link } from 'react-router-dom'
+import styled from 'styled-components'
 
 import * as styles from './Activity.css'
 import { AddressCell, BuyCell, EventCell, ItemCell, PriceCell } from './ActivityCells'
@@ -24,9 +22,11 @@ enum ColumnHeaders {
   To = 'To',
 }
 
-const FilterBox = styled.div<{ backgroundColor: string }>`
+const FilterBox = styled.div<{ isActive: boolean }>`
   display: flex;
-  background: ${({ backgroundColor }) => backgroundColor};
+  color: ${({ isActive, theme }) => (isActive ? theme.neutral1 : theme.neutral1)};
+  background: ${({ isActive, theme }) => (isActive ? theme.surface3 : theme.surface1)};
+  border: ${({ isActive, theme }) => `1px solid ${isActive ? theme.surface3 : theme.surface3}`};
   ${OpacityHoverState};
 `
 
@@ -60,84 +60,44 @@ export const reduceFilters = (state: typeof initialFilterState, action: { eventT
   return { ...state, [action.eventType]: !state[action.eventType] }
 }
 
-const baseHref = (event: ActivityEvent) => `/#/nfts/asset/${event.collectionAddress}/${event.tokenId}?origin=activity`
-
 export const Activity = ({ contractAddress, rarityVerified, collectionName, chainId }: ActivityProps) => {
   const [activeFilters, filtersDispatch] = useReducer(reduceFilters, initialFilterState)
 
   const {
-    data: eventsData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
-    isSuccess,
-    isLoading,
-  } = useInfiniteQuery<ActivityEventResponse>(
-    [
-      'collectionActivity',
-      {
-        contractAddress,
-        activeFilters,
-      },
-    ],
-    async ({ pageParam = '' }) => {
-      return await ActivityFetcher(
-        contractAddress,
-        {
-          eventTypes: Object.keys(activeFilters)
-            .filter((key) => activeFilters[key as ActivityEventType])
-            .map((key) => key as ActivityEventType),
-        },
-        pageParam
-      )
-    },
+    nftActivity,
+    hasNext: hasNextActivity,
+    loadMore: loadMoreActivities,
+    loading: activitiesAreLoading,
+  } = useNftActivity(
     {
-      getNextPageParam: (lastPage) => {
-        return lastPage.events?.length === 25 ? lastPage.cursor : undefined
-      },
-      refetchInterval: 15000,
-      refetchIntervalInBackground: false,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-    }
+      activityTypes: Object.keys(activeFilters)
+        .map((key) => key as NftActivityType)
+        .filter((key) => activeFilters[key]),
+      address: contractAddress,
+    },
+    25
   )
 
-  const events = useMemo(
-    () => (isSuccess ? eventsData?.pages.map((page) => page.events).flat() : null),
-    [isSuccess, eventsData]
-  )
-
+  const isLoadingMore = hasNextActivity && nftActivity?.length
   const itemsInBag = useBag((state) => state.itemsInBag)
   const addAssetsToBag = useBag((state) => state.addAssetsToBag)
   const removeAssetsFromBag = useBag((state) => state.removeAssetsFromBag)
   const cartExpanded = useBag((state) => state.bagExpanded)
   const toggleCart = useBag((state) => state.toggleBag)
   const isMobile = useIsMobile()
-  const [ethPriceInUSD, setEthPriceInUSD] = useState(0)
-  const isDarkMode = useIsDarkMode()
-
-  useEffect(() => {
-    fetchPrice().then((price) => {
-      setEthPriceInUSD(price || 0)
-    })
-  }, [])
+  const ethPriceInUSD = useNativeUsdPrice()
 
   const Filter = useCallback(
     function ActivityFilter({ eventType }: { eventType: ActivityEventType }) {
       const isActive = activeFilters[eventType]
-      const activeBackgroundColor = isDarkMode ? vars.color.gray500 : vars.color.gray200
 
       return (
-        <FilterBox
-          className={styles.filter}
-          backgroundColor={isActive ? activeBackgroundColor : themeVars.colors.backgroundInteractive}
-          onClick={() => filtersDispatch({ eventType })}
-        >
+        <FilterBox className={styles.filter} isActive={isActive} onClick={() => filtersDispatch({ eventType })}>
           {eventType.charAt(0) + eventType.slice(1).toLowerCase() + 's'}
         </FilterBox>
       )
     },
-    [activeFilters, isDarkMode]
+    [activeFilters]
   )
 
   return (
@@ -147,51 +107,65 @@ export const Activity = ({ contractAddress, rarityVerified, collectionName, chai
         <Filter eventType={ActivityEventType.Sale} />
         <Filter eventType={ActivityEventType.Transfer} />
       </Row>
-      {isLoading && <ActivityLoader />}
-      {events && (
-        <Column marginTop="36">
-          <HeaderRow />
-          <InfiniteScroll
-            next={fetchNextPage}
-            hasMore={!!hasNextPage}
-            loader={isFetchingNextPage ? <ActivityPageLoader rowCount={2} /> : null}
-            dataLength={events?.length ?? 0}
-            style={{ overflow: 'unset' }}
-          >
-            {events.map((event, i) => (
-              <Box as="a" data-testid="nft-activity-row" href={baseHref(event)} className={styles.eventRow} key={i}>
-                <ItemCell
-                  event={event}
-                  rarityVerified={rarityVerified}
-                  collectionName={collectionName}
-                  eventTimestamp={event.eventTimestamp}
-                  isMobile={isMobile}
-                />
-                <EventCell
-                  eventType={event.eventType}
-                  eventTimestamp={event.eventTimestamp}
-                  eventTransactionHash={event.transactionHash}
-                  price={event.price}
-                  isMobile={isMobile}
-                />
-                <PriceCell marketplace={event.marketplace} price={event.price} />
-                <AddressCell address={event.fromAddress} chainId={chainId} />
-                <AddressCell address={event.toAddress} chainId={chainId} desktopLBreakpoint />
-                <BuyCell
-                  event={event}
-                  collectionName={collectionName}
-                  selectAsset={addAssetsToBag}
-                  removeAsset={removeAssetsFromBag}
-                  itemsInBag={itemsInBag}
-                  cartExpanded={cartExpanded}
-                  toggleCart={toggleCart}
-                  isMobile={isMobile}
-                  ethPriceInUSD={ethPriceInUSD}
-                />
-              </Box>
-            ))}
-          </InfiniteScroll>
-        </Column>
+      {activitiesAreLoading ? (
+        <ActivityLoader />
+      ) : (
+        nftActivity && (
+          <Column marginTop="36">
+            <HeaderRow />
+            <InfiniteScroll
+              next={loadMoreActivities}
+              hasMore={!!hasNextActivity}
+              loader={isLoadingMore ? <ActivityPageLoader rowCount={2} /> : null}
+              dataLength={nftActivity?.length ?? 0}
+              style={{ overflow: 'unset' }}
+            >
+              {nftActivity.map(
+                (event, i) =>
+                  event.eventType && (
+                    <Box
+                      as={Link}
+                      data-testid="nft-activity-row"
+                      // @ts-ignore Box component is not typed properly to typecheck
+                      // custom components' props and will incorrectly report `to` as invalid
+                      to={`/nfts/asset/${event.collectionAddress}/${event.tokenId}?origin=activity`}
+                      className={styles.eventRow}
+                      key={i}
+                    >
+                      <ItemCell
+                        event={event}
+                        rarityVerified={rarityVerified}
+                        collectionName={collectionName}
+                        eventTimestamp={event.eventTimestamp}
+                        isMobile={isMobile}
+                      />
+                      <EventCell
+                        eventType={event.eventType}
+                        eventTimestamp={event.eventTimestamp}
+                        eventTransactionHash={event.transactionHash}
+                        price={event.price}
+                        isMobile={isMobile}
+                      />
+                      <PriceCell marketplace={event.marketplace} price={event.price} />
+                      <AddressCell address={event.fromAddress} chainId={chainId} />
+                      <AddressCell address={event.toAddress} chainId={chainId} desktopLBreakpoint />
+                      <BuyCell
+                        event={event}
+                        collectionName={collectionName}
+                        selectAsset={addAssetsToBag}
+                        removeAsset={removeAssetsFromBag}
+                        itemsInBag={itemsInBag}
+                        cartExpanded={cartExpanded}
+                        toggleCart={toggleCart}
+                        isMobile={isMobile}
+                        ethPriceInUSD={ethPriceInUSD}
+                      />
+                    </Box>
+                  )
+              )}
+            </InfiniteScroll>
+          </Column>
+        )
       )}
     </Box>
   )

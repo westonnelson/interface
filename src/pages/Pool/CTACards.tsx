@@ -2,14 +2,13 @@ import { Trans } from '@lingui/macro'
 import { useWeb3React } from '@web3-react/core'
 import { AutoColumn } from 'components/Column'
 import { getChainInfoOrDefault } from 'constants/chainInfo'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
-
-import { ExternalLink } from '../../theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
+import { ExternalLink } from 'theme/components'
 
 const CTASection = styled.section`
   display: grid;
-  grid-template-columns: 2fr 1.5fr;
+  grid-template-columns: 1fr 1fr;
   gap: 8px;
   opacity: 0.8;
 
@@ -19,50 +18,22 @@ const CTASection = styled.section`
   `};
 `
 
-const CTA1 = styled(ExternalLink)`
+const CTA = styled(ExternalLink)`
   padding: 16px;
   border-radius: 20px;
-  display: flex;
-  flex-direction: column;
   position: relative;
-  justify-content: center;
-  align-items: center;
   overflow: hidden;
-  border: 1px solid ${({ theme }) => theme.deprecated_bg3};
+  border: 1px solid ${({ theme }) => theme.surface3};
 
   * {
-    color: ${({ theme }) => theme.textPrimary};
+    color: ${({ theme }) => theme.neutral1};
     text-decoration: none !important;
   }
 
   :hover {
-    border: 1px solid ${({ theme }) => theme.deprecated_bg4};
+    border: 1px solid ${({ theme }) => theme.surface3};
 
     text-decoration: none;
-    * {
-      text-decoration: none !important;
-    }
-  }
-`
-
-const CTA2 = styled(ExternalLink)`
-  position: relative;
-  overflow: hidden;
-  padding: 16px;
-  border-radius: 20px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  border: 1px solid ${({ theme }) => theme.deprecated_bg3};
-
-  * {
-    color: ${({ theme }) => theme.textPrimary};
-    text-decoration: none !important;
-  }
-
-  :hover {
-    border: 1px solid ${({ theme }) => theme.deprecated_bg4};
-    text-decoration: none !important;
     * {
       text-decoration: none !important;
     }
@@ -72,9 +43,8 @@ const CTA2 = styled(ExternalLink)`
 const HeaderText = styled(ThemedText.DeprecatedLabel)`
   align-items: center;
   display: flex;
-
-  font-weight: 400;
   font-size: 16px;
+  font-weight: 535 !important;
   ${({ theme }) => theme.deprecated_mediaWidth.deprecated_upToMedium`
     font-size: 16px;
   `};
@@ -97,26 +67,26 @@ export default function CTACards() {
 
   return (
     <CTASection>
-      <CTA1 href="https://help.uniswap.org/en/articles/5391541-providing-liquidity-on-uniswap-v3">
+      <CTA href="https://support.uniswap.org/hc/en-us/categories/8122334631437-Providing-Liquidity-">
         <ResponsiveColumn>
           <HeaderText>
             <Trans>Learn about providing liquidity</Trans> ↗
           </HeaderText>
-          <ThemedText.DeprecatedBody fontWeight={400} style={{ alignItems: 'center', display: 'flex' }}>
+          <ThemedText.DeprecatedBody style={{ alignItems: 'center', display: 'flex', fontWeight: 485 }}>
             <Trans>Check out our v3 LP walkthrough and migration guides.</Trans>
           </ThemedText.DeprecatedBody>
         </ResponsiveColumn>
-      </CTA1>
-      <CTA2 data-testid="cta-infolink" href={infoLink + 'pools'}>
+      </CTA>
+      <CTA data-testid="cta-infolink" href={infoLink + 'pools'}>
         <ResponsiveColumn>
           <HeaderText style={{ alignSelf: 'flex-start' }}>
             <Trans>Top pools</Trans> ↗
           </HeaderText>
-          <ThemedText.DeprecatedBody fontWeight={400} style={{ alignSelf: 'flex-start' }}>
+          <ThemedText.DeprecatedBody style={{ alignSelf: 'flex-start', fontWeight: 485 }}>
             <Trans>Explore Uniswap Analytics.</Trans>
           </ThemedText.DeprecatedBody>
         </ResponsiveColumn>
-      </CTA2>
+      </CTA>
     </CTASection>
   )
 }

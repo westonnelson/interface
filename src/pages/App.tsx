@@ -1,187 +1,246 @@
-import { initializeAnalytics, OriginApplication, sendAnalyticsEvent, Trace, user } from '@uniswap/analytics'
-import { CustomUserProperties, EventName, getBrowser, PageName } from '@uniswap/analytics-events'
-import Loader from 'components/Loader'
-import { MenuDropdown } from 'components/NavBar/MenuDropdown'
-import TopLevelModals from 'components/TopLevelModals'
-import { useFeatureFlagsIsLoaded } from 'featureFlags'
-import { LandingPageVariant, useLandingPageFlag } from 'featureFlags/flags/landingPage'
-import ApeModeQueryParamReader from 'hooks/useApeModeQueryParamReader'
-import { Box } from 'nft/components/Box'
-import { CollectionPageSkeleton } from 'nft/components/collection/CollectionPageSkeleton'
-import { AssetDetailsLoading } from 'nft/components/details/AssetDetailsLoading'
-import { ProfilePageLoadingSkeleton } from 'nft/components/profile/view/ProfilePageLoadingSkeleton'
-import { lazy, Suspense, useEffect, useState } from 'react'
-import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
-import { useIsDarkMode } from 'state/user/hooks'
-import styled from 'styled-components/macro'
-import { SpinnerSVG } from 'theme/components'
+import { CustomUserProperties, getBrowser, SharedEventName } from '@uniswap/analytics-events'
+import { useWeb3React } from '@web3-react/core'
+import { getDeviceId, sendAnalyticsEvent, sendInitializationEvent, Trace, user } from 'analytics'
+import ErrorBoundary from 'components/ErrorBoundary'
+import Loader from 'components/Icons/LoadingSpinner'
+import NavBar, { PageTabs } from 'components/NavBar'
+import { UK_BANNER_HEIGHT, UK_BANNER_HEIGHT_MD, UK_BANNER_HEIGHT_SM, UkBanner } from 'components/NavBar/UkBanner'
+import { FeatureFlag, useFeatureFlagsIsLoaded } from 'featureFlags'
+import { useUniswapXDefaultEnabled } from 'featureFlags/flags/uniswapXDefault'
+import { useAtom } from 'jotai'
+import { useBag } from 'nft/hooks/useBag'
+import { lazy, Suspense, useEffect, useLayoutEffect, useMemo, useState } from 'react'
+import { Navigate, Route, Routes, useLocation, useSearchParams } from 'react-router-dom'
+import { shouldDisableNFTRoutesAtom } from 'state/application/atoms'
+import { useAppSelector } from 'state/hooks'
+import { AppState } from 'state/reducer'
+import { RouterPreference } from 'state/routing/types'
+import { useRouterPreference, useUserOptedOutOfUniswapX } from 'state/user/hooks'
+import { StatsigProvider, StatsigUser, useGate } from 'statsig-react'
+import styled from 'styled-components'
+import DarkModeQueryParamReader from 'theme/components/DarkModeQueryParamReader'
+import { useIsDarkMode } from 'theme/components/ThemeToggle'
 import { flexRowNoWrap } from 'theme/styles'
 import { Z_INDEX } from 'theme/zIndex'
-import { isProductionEnv } from 'utils/env'
+import { STATSIG_DUMMY_KEY } from 'tracing'
+import { getEnvName } from 'utils/env'
+import { getDownloadAppLink } from 'utils/openDownloadApp'
+import { getCurrentPageFromLocation } from 'utils/urlRoutes'
 import { getCLS, getFCP, getFID, getLCP, Metric } from 'web-vitals'
 
-import { useAnalyticsReporter } from '../components/analytics'
-import ErrorBoundary from '../components/ErrorBoundary'
-import { PageTabs } from '../components/NavBar'
-import NavBar from '../components/NavBar'
-import Polling from '../components/Polling'
-import Popups from '../components/Popups'
-import { useIsExpertMode } from '../state/user/hooks'
-import DarkModeQueryParamReader from '../theme/components/DarkModeQueryParamReader'
-import About from './About'
-import AddLiquidity from './AddLiquidity'
-import { RedirectDuplicateTokenIds } from './AddLiquidity/redirects'
-import { RedirectDuplicateTokenIdsV2 } from './AddLiquidityV2/redirects'
-import Earn from './Earn'
-import Manage from './Earn/Manage'
-import Landing from './Landing'
-import MigrateV2 from './MigrateV2'
-import MigrateV2Pair from './MigrateV2/MigrateV2Pair'
-import Pool from './Pool'
-import { PositionPage } from './Pool/PositionPage'
-import PoolV2 from './Pool/v2'
-import PoolFinder from './PoolFinder'
-import RemoveLiquidity from './RemoveLiquidity'
-import RemoveLiquidityV3 from './RemoveLiquidity/V3'
-import Swap from './Swap'
-import { OpenClaimAddressModalAndRedirectToSwap, RedirectPathToSwapOnly } from './Swap/redirects'
-import Tokens from './Tokens'
+import { RouteDefinition, routes, useRouterConfig } from './RouteDefinitions'
 
-const TokenDetails = lazy(() => import('./TokenDetails'))
-const Vote = lazy(() => import('./Vote'))
-const NftExplore = lazy(() => import('nft/pages/explore'))
-const Collection = lazy(() => import('nft/pages/collection'))
-const Profile = lazy(() => import('nft/pages/profile/profile'))
-const Asset = lazy(() => import('nft/pages/asset/Asset'))
+const AppChrome = lazy(() => import('./AppChrome'))
 
-// Placeholder API key. Actual API key used in the proxy server
-const ANALYTICS_DUMMY_KEY = '00000000000000000000000000000000'
-const ANALYTICS_PROXY_URL = process.env.REACT_APP_AMPLITUDE_PROXY_URL
-const COMMIT_HASH = process.env.REACT_APP_GIT_COMMIT_HASH
-initializeAnalytics(ANALYTICS_DUMMY_KEY, OriginApplication.INTERFACE, {
-  proxyUrl: ANALYTICS_PROXY_URL,
-  defaultEventName: EventName.PAGE_VIEWED,
-  commitHash: COMMIT_HASH,
-  isProductionEnv: isProductionEnv(),
-})
-
-const AppWrapper = styled.div`
-  display: flex;
-  flex-flow: column;
-  align-items: flex-start;
-  height: 100%;
-`
-
-const BodyWrapper = styled.div`
+const BodyWrapper = styled.div<{ bannerIsVisible?: boolean }>`
   display: flex;
   flex-direction: column;
   width: 100%;
-  height: 100%;
-  padding: 72px 0px 0px 0px;
+  min-height: calc(100vh - ${({ bannerIsVisible }) => (bannerIsVisible ? UK_BANNER_HEIGHT : 0)}px);
+  padding: ${({ theme }) => theme.navHeight}px 0px 5rem 0px;
   align-items: center;
   flex: 1;
-  ${({ theme }) => theme.deprecated_mediaWidth.deprecated_upToSmall`
-    padding: 52px 0px 16px 0px;
-  `};
+
+  @media only screen and (max-width: ${({ theme }) => `${theme.breakpoint.md}px`}) {
+    min-height: calc(100vh - ${({ bannerIsVisible }) => (bannerIsVisible ? UK_BANNER_HEIGHT_MD : 0)}px);
+  }
+
+  @media only screen and (max-width: ${({ theme }) => `${theme.breakpoint.sm}px`}) {
+    min-height: calc(100vh - ${({ bannerIsVisible }) => (bannerIsVisible ? UK_BANNER_HEIGHT_SM : 0)}px);
+  }
 `
 
 const MobileBottomBar = styled.div`
   z-index: ${Z_INDEX.sticky};
-  position: sticky;
+  position: fixed;
   display: flex;
   bottom: 0;
   right: 0;
   left: 0;
-  width: 100vw;
+  width: calc(100vw - 16px);
   justify-content: space-between;
-  padding: 4px 8px;
+  padding: 0px 4px;
   height: ${({ theme }) => theme.mobileBottomBarHeight}px;
-  background: ${({ theme }) => theme.backgroundSurface};
-  border-top: 1px solid ${({ theme }) => theme.backgroundOutline};
+  background: ${({ theme }) => theme.surface1};
+  border: 1px solid ${({ theme }) => theme.surface3};
+  margin: 8px;
+  border-radius: 20px;
 
   @media screen and (min-width: ${({ theme }) => theme.breakpoint.md}px) {
     display: none;
   }
 `
 
-const HeaderWrapper = styled.div<{ transparent?: boolean }>`
+const HeaderWrapper = styled.div<{ transparent?: boolean; bannerIsVisible?: boolean; scrollY: number }>`
   ${flexRowNoWrap};
-  background-color: ${({ theme, transparent }) => !transparent && theme.backgroundSurface};
-  border-bottom: ${({ theme, transparent }) => !transparent && `1px solid ${theme.backgroundOutline}`};
+  background-color: ${({ theme, transparent }) => !transparent && theme.surface1};
+  border-bottom: ${({ theme, transparent }) => !transparent && `1px solid ${theme.surface3}`};
   width: 100%;
   justify-content: space-between;
   position: fixed;
-  top: 0;
-  z-index: ${Z_INDEX.sticky};
-`
+  top: ${({ bannerIsVisible }) => (bannerIsVisible ? Math.max(UK_BANNER_HEIGHT - scrollY, 0) : 0)}px;
+  z-index: ${Z_INDEX.dropdown};
 
-const Marginer = styled.div`
-  margin-top: 5rem;
-`
-
-function getCurrentPageFromLocation(locationPathname: string): PageName | undefined {
-  switch (true) {
-    case locationPathname.startsWith('/swap'):
-      return PageName.SWAP_PAGE
-    case locationPathname.startsWith('/vote'):
-      return PageName.VOTE_PAGE
-    case locationPathname.startsWith('/pool'):
-      return PageName.POOL_PAGE
-    case locationPathname.startsWith('/tokens'):
-      return PageName.TOKENS_PAGE
-    case locationPathname.startsWith('/nfts/profile'):
-      return PageName.NFT_PROFILE_PAGE
-    case locationPathname.startsWith('/nfts/asset'):
-      return PageName.NFT_DETAILS_PAGE
-    case locationPathname.startsWith('/nfts/collection'):
-      return PageName.NFT_COLLECTION_PAGE
-    case locationPathname.startsWith('/nfts'):
-      return PageName.NFT_EXPLORE_PAGE
-    default:
-      return undefined
+  @media only screen and (max-width: ${({ theme }) => `${theme.breakpoint.md}px`}) {
+    top: ${({ bannerIsVisible }) => (bannerIsVisible ? Math.max(UK_BANNER_HEIGHT_MD - scrollY, 0) : 0)}px;
   }
-}
 
-// this is the same svg defined in assets/images/blue-loader.svg
-// it is defined here because the remote asset may not have had time to load when this file is executing
-const LazyLoadSpinner = () => (
-  <SpinnerSVG width="94" height="94" viewBox="0 0 94 94" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M92 47C92 22.1472 71.8528 2 47 2C22.1472 2 2 22.1472 2 47C2 71.8528 22.1472 92 47 92"
-      stroke="#2172E5"
-      strokeWidth="3"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    />
-  </SpinnerSVG>
-)
+  @media only screen and (max-width: ${({ theme }) => `${theme.breakpoint.sm}px`}) {
+    top: ${({ bannerIsVisible }) => (bannerIsVisible ? Math.max(UK_BANNER_HEIGHT_SM - scrollY, 0) : 0)}px;
+  }
+`
 
 export default function App() {
   const isLoaded = useFeatureFlagsIsLoaded()
+  const [, setShouldDisableNFTRoutes] = useAtom(shouldDisableNFTRoutesAtom)
 
-  const { pathname } = useLocation()
+  const location = useLocation()
+  const { pathname } = location
   const currentPage = getCurrentPageFromLocation(pathname)
-  const isDarkMode = useIsDarkMode()
-  const isExpertMode = useIsExpertMode()
-  const [scrolledState, setScrolledState] = useState(false)
 
-  useAnalyticsReporter()
+  const [scrollY, setScrollY] = useState(0)
+  const scrolledState = scrollY > 0
+
+  const routerConfig = useRouterConfig()
+
+  const originCountry = useAppSelector((state: AppState) => state.user.originCountry)
+  const renderUkBannner = Boolean(originCountry) && originCountry === 'GB'
 
   useEffect(() => {
     window.scrollTo(0, 0)
-    setScrolledState(false)
+    setScrollY(0)
   }, [pathname])
 
+  const [searchParams] = useSearchParams()
   useEffect(() => {
-    sendAnalyticsEvent(EventName.APP_LOADED)
+    if (searchParams.get('disableNFTs') === 'true') {
+      setShouldDisableNFTRoutes(true)
+    } else if (searchParams.get('disableNFTs') === 'false') {
+      setShouldDisableNFTRoutes(false)
+    }
+  }, [searchParams, setShouldDisableNFTRoutes])
+
+  useEffect(() => {
+    const scrollListener = () => {
+      setScrollY(window.scrollY)
+    }
+    window.addEventListener('scroll', scrollListener)
+    return () => window.removeEventListener('scroll', scrollListener)
+  }, [])
+
+  const isBagExpanded = useBag((state) => state.bagExpanded)
+  const isHeaderTransparent = !scrolledState && !isBagExpanded
+
+  const { account } = useWeb3React()
+  const statsigUser: StatsigUser = useMemo(
+    () => ({
+      userID: getDeviceId(),
+      customIDs: { address: account ?? '' },
+    }),
+    [account]
+  )
+
+  // redirect address to landing pages until implemented
+  const shouldRedirectToAppInstall = pathname?.startsWith('/address/')
+  useLayoutEffect(() => {
+    if (shouldRedirectToAppInstall) {
+      window.location.href = getDownloadAppLink()
+    }
+  }, [shouldRedirectToAppInstall])
+
+  if (shouldRedirectToAppInstall) {
+    return null
+  }
+
+  const blockedPaths = document.querySelector('meta[property="x:blocked-paths"]')?.getAttribute('content')?.split(',')
+  const shouldBlockPath = blockedPaths?.includes(pathname) ?? false
+  if (shouldBlockPath && pathname !== '/swap') {
+    return <Navigate to="/swap" replace />
+  }
+
+  return (
+    <ErrorBoundary>
+      <DarkModeQueryParamReader />
+      <Trace page={currentPage}>
+        <StatsigProvider
+          user={statsigUser}
+          // TODO: replace with proxy and cycle key
+          sdkKey={STATSIG_DUMMY_KEY}
+          waitForInitialization={false}
+          options={{
+            environment: { tier: getEnvName() },
+            api: process.env.REACT_APP_STATSIG_PROXY_URL,
+          }}
+        >
+          <UserPropertyUpdater />
+          {renderUkBannner && <UkBanner />}
+          <HeaderWrapper transparent={isHeaderTransparent} bannerIsVisible={renderUkBannner} scrollY={scrollY}>
+            <NavBar blur={isHeaderTransparent} />
+          </HeaderWrapper>
+          <BodyWrapper bannerIsVisible={renderUkBannner}>
+            <Suspense>
+              <AppChrome />
+            </Suspense>
+            <Suspense fallback={<Loader />}>
+              {isLoaded ? (
+                <Routes>
+                  {routes.map((route: RouteDefinition) =>
+                    route.enabled(routerConfig) ? (
+                      <Route key={route.path} path={route.path} element={route.getElement(routerConfig)}>
+                        {route.nestedPaths.map((nestedPath) => (
+                          <Route path={nestedPath} key={`${route.path}/${nestedPath}`} />
+                        ))}
+                      </Route>
+                    ) : null
+                  )}
+                </Routes>
+              ) : (
+                <Loader />
+              )}
+            </Suspense>
+          </BodyWrapper>
+          <MobileBottomBar>
+            <PageTabs />
+          </MobileBottomBar>
+        </StatsigProvider>
+      </Trace>
+    </ErrorBoundary>
+  )
+}
+
+function UserPropertyUpdater() {
+  const isDarkMode = useIsDarkMode()
+
+  const [routerPreference] = useRouterPreference()
+  const userOptedOutOfUniswapX = useUserOptedOutOfUniswapX()
+  const isUniswapXDefaultEnabled = useUniswapXDefaultEnabled()
+  const { isLoading: isUniswapXDefaultLoading } = useGate(FeatureFlag.uniswapXDefaultEnabled)
+  const rehydrated = useAppSelector((state) => state._persist.rehydrated)
+
+  useEffect(() => {
+    // User properties *must* be set before sending corresponding event properties,
+    // so that the event contains the correct and up-to-date user properties.
     user.set(CustomUserProperties.USER_AGENT, navigator.userAgent)
     user.set(CustomUserProperties.BROWSER, getBrowser())
     user.set(CustomUserProperties.SCREEN_RESOLUTION_HEIGHT, window.screen.height)
     user.set(CustomUserProperties.SCREEN_RESOLUTION_WIDTH, window.screen.width)
-    getCLS(({ delta }: Metric) => sendAnalyticsEvent(EventName.WEB_VITALS, { cumulative_layout_shift: delta }))
-    getFCP(({ delta }: Metric) => sendAnalyticsEvent(EventName.WEB_VITALS, { first_contentful_paint_ms: delta }))
-    getFID(({ delta }: Metric) => sendAnalyticsEvent(EventName.WEB_VITALS, { first_input_delay_ms: delta }))
-    getLCP(({ delta }: Metric) => sendAnalyticsEvent(EventName.WEB_VITALS, { largest_contentful_paint_ms: delta }))
+    user.set(CustomUserProperties.GIT_COMMIT_HASH, process.env.REACT_APP_GIT_COMMIT_HASH ?? 'unknown')
+
+    // Service Worker analytics
+    const isServiceWorkerInstalled = Boolean(window.navigator.serviceWorker?.controller)
+    const isServiceWorkerHit = Boolean((window as any).__isDocumentCached)
+    const serviceWorkerProperty = isServiceWorkerInstalled ? (isServiceWorkerHit ? 'hit' : 'miss') : 'uninstalled'
+
+    const pageLoadProperties = { service_worker: serviceWorkerProperty }
+    sendInitializationEvent(SharedEventName.APP_LOADED, pageLoadProperties)
+    const sendWebVital =
+      (metric: string) =>
+      ({ delta }: Metric) =>
+        sendAnalyticsEvent(SharedEventName.WEB_VITALS, { ...pageLoadProperties, [metric]: delta })
+    getCLS(sendWebVital('cumulative_layout_shift'))
+    getFCP(sendWebVital('first_contentful_paint_ms'))
+    getFID(sendWebVital('first_input_delay_ms'))
+    getLCP(sendWebVital('largest_contentful_paint_ms'))
   }, [])
 
   useEffect(() => {
@@ -189,147 +248,22 @@ export default function App() {
   }, [isDarkMode])
 
   useEffect(() => {
-    user.set(CustomUserProperties.EXPERT_MODE, isExpertMode)
-  }, [isExpertMode])
+    if (isUniswapXDefaultLoading || !rehydrated) return
 
-  useEffect(() => {
-    const scrollListener = () => {
-      setScrolledState(window.scrollY > 0)
+    // If we're not in the transition period to UniswapX opt-out, set the router preference to whatever is specified.
+    if (!isUniswapXDefaultEnabled) {
+      user.set(CustomUserProperties.ROUTER_PREFERENCE, routerPreference)
+      return
     }
-    window.addEventListener('scroll', scrollListener)
-    return () => window.removeEventListener('scroll', scrollListener)
-  }, [])
 
-  const isHeaderTransparent = !scrolledState
+    // In the transition period, override the stored API preference to UniswapX if the user hasn't opted out.
+    if (routerPreference === RouterPreference.API && !userOptedOutOfUniswapX) {
+      user.set(CustomUserProperties.ROUTER_PREFERENCE, RouterPreference.X)
+      return
+    }
 
-  const landingPageFlag = useLandingPageFlag()
-
-  return (
-    <ErrorBoundary>
-      <DarkModeQueryParamReader />
-      <ApeModeQueryParamReader />
-      <AppWrapper>
-        <Trace page={currentPage}>
-          <HeaderWrapper transparent={isHeaderTransparent}>
-            <NavBar />
-          </HeaderWrapper>
-          <BodyWrapper>
-            <Popups />
-            <Polling />
-            <TopLevelModals />
-            <Suspense fallback={<Loader />}>
-              {isLoaded ? (
-                <Routes>
-                  {landingPageFlag === LandingPageVariant.Enabled && <Route path="/" element={<Landing />} />}
-                  <Route path="tokens" element={<Tokens />}>
-                    <Route path=":chainName" />
-                  </Route>
-                  <Route path="tokens/:chainName/:tokenAddress" element={<TokenDetails />} />
-                  <Route
-                    path="vote/*"
-                    element={
-                      <Suspense fallback={<LazyLoadSpinner />}>
-                        <Vote />
-                      </Suspense>
-                    }
-                  />
-                  <Route path="create-proposal" element={<Navigate to="/vote/create-proposal" replace />} />
-                  <Route path="claim" element={<OpenClaimAddressModalAndRedirectToSwap />} />
-                  <Route path="uni" element={<Earn />} />
-                  <Route path="uni/:currencyIdA/:currencyIdB" element={<Manage />} />
-
-                  <Route path="send" element={<RedirectPathToSwapOnly />} />
-                  <Route path="swap" element={<Swap />} />
-
-                  <Route path="pool/v2/find" element={<PoolFinder />} />
-                  <Route path="pool/v2" element={<PoolV2 />} />
-                  <Route path="pool" element={<Pool />} />
-                  <Route path="pool/:tokenId" element={<PositionPage />} />
-
-                  <Route path="add/v2" element={<RedirectDuplicateTokenIdsV2 />}>
-                    <Route path=":currencyIdA" />
-                    <Route path=":currencyIdA/:currencyIdB" />
-                  </Route>
-                  <Route path="add" element={<RedirectDuplicateTokenIds />}>
-                    {/* this is workaround since react-router-dom v6 doesn't support optional parameters any more */}
-                    <Route path=":currencyIdA" />
-                    <Route path=":currencyIdA/:currencyIdB" />
-                    <Route path=":currencyIdA/:currencyIdB/:feeAmount" />
-                  </Route>
-
-                  <Route path="increase" element={<AddLiquidity />}>
-                    <Route path=":currencyIdA" />
-                    <Route path=":currencyIdA/:currencyIdB" />
-                    <Route path=":currencyIdA/:currencyIdB/:feeAmount" />
-                    <Route path=":currencyIdA/:currencyIdB/:feeAmount/:tokenId" />
-                  </Route>
-
-                  <Route path="remove/v2/:currencyIdA/:currencyIdB" element={<RemoveLiquidity />} />
-                  <Route path="remove/:tokenId" element={<RemoveLiquidityV3 />} />
-
-                  <Route path="migrate/v2" element={<MigrateV2 />} />
-                  <Route path="migrate/v2/:address" element={<MigrateV2Pair />} />
-
-                  <Route path="about" element={<About />} />
-
-                  <Route path="*" element={<RedirectPathToSwapOnly />} />
-
-                  <Route
-                    path="/nfts"
-                    element={
-                      // TODO: replace loading state during Apollo migration
-                      <Suspense fallback={null}>
-                        <NftExplore />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/nfts/asset/:contractAddress/:tokenId"
-                    element={
-                      <Suspense fallback={<AssetDetailsLoading />}>
-                        <Asset />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/nfts/profile"
-                    element={
-                      <Suspense fallback={<ProfilePageLoadingSkeleton />}>
-                        <Profile />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/nfts/collection/:contractAddress"
-                    element={
-                      <Suspense fallback={<CollectionPageSkeleton />}>
-                        <Collection />
-                      </Suspense>
-                    }
-                  />
-                  <Route
-                    path="/nfts/collection/:contractAddress/activity"
-                    element={
-                      <Suspense fallback={<CollectionPageSkeleton />}>
-                        <Collection />
-                      </Suspense>
-                    }
-                  />
-                </Routes>
-              ) : (
-                <Loader />
-              )}
-            </Suspense>
-            <Marginer />
-          </BodyWrapper>
-          <MobileBottomBar>
-            <PageTabs />
-            <Box marginY="4">
-              <MenuDropdown />
-            </Box>
-          </MobileBottomBar>
-        </Trace>
-      </AppWrapper>
-    </ErrorBoundary>
-  )
+    // Otherwise, the user has opted out or their preference is UniswapX/client, so set the preference to whatever is specified.
+    user.set(CustomUserProperties.ROUTER_PREFERENCE, routerPreference)
+  }, [routerPreference, isUniswapXDefaultEnabled, userOptedOutOfUniswapX, isUniswapXDefaultLoading, rehydrated])
+  return null
 }

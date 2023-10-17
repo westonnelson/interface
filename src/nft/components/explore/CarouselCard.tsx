@@ -1,12 +1,12 @@
-import { formatNumberOrString, NumberType } from '@uniswap/conedison/format'
 import { loadingAnimation } from 'components/Loader/styled'
 import { LoadingBubble } from 'components/Tokens/loading'
-import { useCollectionQuery } from 'graphql/data/nft/Collection'
-import { VerifiedIcon } from 'nft/components/icons'
+import { useCollection } from 'graphql/data/nft/Collection'
+import { UniswapMagentaIcon, VerifiedIcon } from 'nft/components/icons'
 import { Markets, TrendingCollection } from 'nft/types'
-import { formatWeiToDecimal } from 'nft/utils'
-import styled from 'styled-components/macro'
+import { ethNumberStandardFormatter } from 'nft/utils'
+import styled from 'styled-components'
 import { ThemedText } from 'theme/components/text'
+import { NumberType, useFormatter } from 'utils/formatNumbers'
 
 const CarouselCardBorder = styled.div`
   width: 100%;
@@ -19,7 +19,7 @@ const CarouselCardBorder = styled.div`
   transition-timing-function: ${({ theme }) => theme.transition.timing.inOut};
 
   :hover {
-    border: 1px solid ${({ theme }) => theme.backgroundOutline};
+    border: 1px solid ${({ theme }) => theme.surface3};
   }
 
   ::after {
@@ -32,7 +32,7 @@ const CarouselCardBorder = styled.div`
     bottom: 0;
     border-radius: 21px;
     z-index: -1;
-    box-shadow: ${({ theme }) => theme.deepShadow};
+    box-shadow: ${({ theme }) => theme.deprecated_deepShadow};
     transition-property: opacity;
     transition-duration: ${({ theme }) => theme.transition.duration.fast};
     transition-timing-function: ${({ theme }) => theme.transition.timing.inOut};
@@ -56,9 +56,9 @@ const LoadingCardHeaderContainer = styled.div`
   animation-fill-mode: both;
   background: linear-gradient(
     to left,
-    ${({ theme }) => theme.backgroundInteractive} 25%,
-    ${({ theme }) => theme.backgroundOutline} 50%,
-    ${({ theme }) => theme.backgroundInteractive} 75%
+    ${({ theme }) => theme.surface3} 25%,
+    ${({ theme }) => theme.surface3} 50%,
+    ${({ theme }) => theme.surface3} 75%
   );
   will-change: background-position;
   background-size: 400%;
@@ -77,9 +77,10 @@ const CardHeaderColumn = styled.div`
   z-index: 1;
 `
 const IconContainer = styled.div`
-  display: inline;
+  display: inline-flex;
   vertical-align: text-bottom;
   margin-left: 2px;
+  transform: translateY(-2px) translateX(2px);
 `
 const CollectionNameContainer = styled.div`
   display: -webkit-box;
@@ -113,8 +114,8 @@ const HeaderOverlay = styled.div`
 const CollectionImage = styled.img`
   width: 86px;
   height: 86px;
-  background: ${({ theme }) => theme.accentTextLightPrimary};
-  border: 2px solid ${({ theme }) => theme.accentTextLightPrimary};
+  background: ${({ theme }) => theme.deprecated_accentTextLightPrimary};
+  border: 2px solid ${({ theme }) => theme.deprecated_accentTextLightPrimary};
   border-radius: 100px;
 `
 
@@ -126,9 +127,9 @@ const LoadingCollectionImage = styled.div`
   animation-fill-mode: both;
   background: linear-gradient(
     to left,
-    ${({ theme }) => theme.backgroundInteractive} 25%,
-    ${({ theme }) => theme.backgroundOutline} 50%,
-    ${({ theme }) => theme.backgroundInteractive} 75%
+    ${({ theme }) => theme.surface3} 25%,
+    ${({ theme }) => theme.surface3} 50%,
+    ${({ theme }) => theme.surface3} 75%
   );
   will-change: background-position;
   background-size: 400%;
@@ -162,8 +163,8 @@ const MarketplaceIcon = styled.img`
 const CarouselCardContainer = styled.div`
   display: flex;
   flex-direction: column;
-  background-color: ${({ theme }) => theme.backgroundSurface};
-  border: 1px solid ${({ theme }) => theme.backgroundOutline};
+  background-color: ${({ theme }) => theme.surface1};
+  border: 1px solid ${({ theme }) => theme.surface3};
   border-radius: 20px;
   overflow: hidden;
   height: 100%;
@@ -197,6 +198,8 @@ interface MarketplaceRowProps {
 }
 
 const MarketplaceRow = ({ marketplace, floorInEth, listings }: MarketplaceRowProps) => {
+  const { formatNumberOrString } = useFormatter()
+
   return (
     <>
       <TableElement>
@@ -205,18 +208,18 @@ const MarketplaceRow = ({ marketplace, floorInEth, listings }: MarketplaceRowPro
           alt={`${marketplace} icon`}
         />
         <FirstColumnTextWrapper>
-          <ThemedText.BodySmall color="textSecondary">{marketplace}</ThemedText.BodySmall>
+          <ThemedText.BodySmall color="neutral2">{marketplace}</ThemedText.BodySmall>
         </FirstColumnTextWrapper>
       </TableElement>
       <TableElement>
-        <ThemedText.BodySmall color="textSecondary">
+        <ThemedText.BodySmall color="neutral2">
           {Number(floorInEth) > 0
-            ? `${formatNumberOrString(floorInEth, NumberType.NFTTokenFloorPriceTrailingZeros)} ETH`
+            ? `${formatNumberOrString({ input: floorInEth, type: NumberType.NFTTokenFloorPriceTrailingZeros })} ETH`
             : '-'}
         </ThemedText.BodySmall>
       </TableElement>
       <TableElement>
-        <ThemedText.BodySmall color="textSecondary">{Number(listings) > 0 ? listings : 'None'}</ThemedText.BodySmall>
+        <ThemedText.BodySmall color="neutral2">{Number(listings) > 0 ? listings : 'None'}</ThemedText.BodySmall>
       </TableElement>
     </>
   )
@@ -235,7 +238,9 @@ const MARKETS_ENUM_TO_NAME = {
 }
 
 export const CarouselCard = ({ collection, onClick }: CarouselCardProps) => {
-  const gqlCollection = useCollectionQuery(collection.address)
+  const { data: gqlCollection, loading } = useCollection(collection.address ?? '')
+
+  if (loading) return <LoadingCarouselCard />
 
   return (
     <CarouselCardBorder>
@@ -244,15 +249,17 @@ export const CarouselCard = ({ collection, onClick }: CarouselCardProps) => {
         <CardBottomContainer>
           <>
             <TableElement>
-              <MarketplaceIcon src="/nft/svgs/marketplaces/uniswap-magenta.svg" alt="Uniswap icon" />
+              <UniswapMagentaIcon width="20" height="20" />
               <FirstColumnTextWrapper>
                 <ThemedText.SubHeaderSmall color="userThemeColor">Uniswap</ThemedText.SubHeaderSmall>
               </FirstColumnTextWrapper>
             </TableElement>
             <TableElement>
-              <ThemedText.SubHeaderSmall color="userThemeColor">
-                {formatWeiToDecimal(collection.floor.toString())} ETH Floor
-              </ThemedText.SubHeaderSmall>
+              {collection.floor && (
+                <ThemedText.SubHeaderSmall color="userThemeColor">
+                  {ethNumberStandardFormatter(collection.floor)} ETH Floor
+                </ThemedText.SubHeaderSmall>
+              )}
             </TableElement>
             <TableElement>
               <ThemedText.SubHeaderSmall color="userThemeColor">
@@ -302,11 +309,11 @@ const CollectionName = styled(ThemedText.MediumHeader)`
 
 const CarouselCardHeader = ({ collection }: { collection: TrendingCollection }) => {
   return (
-    <CardHeaderContainer src={collection.bannerImageUrl}>
+    <CardHeaderContainer src={collection.bannerImageUrl ?? ''}>
       <CardHeaderColumn>
         <CollectionImage src={collection.imageUrl} />
         <CollectionNameContainer>
-          <CollectionName color="accentTextLightPrimary" fontWeight="500">
+          <CollectionName color="deprecated_accentTextLightPrimary" fontWeight="500">
             {collection.name}
           </CollectionName>
           {collection.isVerified && (

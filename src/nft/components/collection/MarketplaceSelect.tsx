@@ -1,5 +1,5 @@
-import { sendAnalyticsEvent } from '@uniswap/analytics'
-import { EventName, FilterTypes } from '@uniswap/analytics-events'
+import { NFTEventName, NFTFilterTypes } from '@uniswap/analytics-events'
+import { sendAnalyticsEvent } from 'analytics'
 import clsx from 'clsx'
 import { Box } from 'nft/components/Box'
 import * as styles from 'nft/components/collection/Filters.css'
@@ -8,9 +8,10 @@ import { ChevronUpIcon } from 'nft/components/icons'
 import { subheadSmall } from 'nft/css/common.css'
 import { useCollectionFilters } from 'nft/hooks/useCollectionFilters'
 import { TraitPosition, useTraitsOpen } from 'nft/hooks/useTraitsOpen'
+import { getMarketplaceIcon } from 'nft/utils'
 import { FormEvent, useEffect, useMemo, useReducer, useState } from 'react'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 
 import { Checkbox } from '../layout/Checkbox'
 
@@ -20,14 +21,8 @@ const FilterItemWrapper = styled(Row)`
   cursor: pointer;
   border-radius: 12px;
   &:hover {
-    background: ${({ theme }) => theme.backgroundInteractive};
+    background: ${({ theme }) => theme.surface2};
   }
-`
-
-export const MarketplaceLogo = styled.img`
-  height: 16px;
-  width: 16px;
-  border-radius: 4px;
 `
 
 const MarketNameWrapper = styled(Row)`
@@ -43,13 +38,6 @@ export const MARKETPLACE_ITEMS = {
   nftx: 'NFTX',
   nft20: 'NFT20',
   cryptopunks: 'LarvaLabs',
-}
-
-function getMarketLogoSrc(market: string) {
-  const marketplaceItem = Object.keys(MARKETPLACE_ITEMS).find(
-    (key) => MARKETPLACE_ITEMS[key as keyof typeof MARKETPLACE_ITEMS] === market
-  )
-  return `/nft/svgs/marketplaces/${marketplaceItem}.svg`
 }
 
 export const FilterItem = ({
@@ -98,12 +86,12 @@ const MarketplaceItem = ({
       removeMarket(value)
       setCheckboxSelected(false)
     }
-    sendAnalyticsEvent(EventName.NFT_FILTER_SELECTED, { filter_type: FilterTypes.MARKETPLACE })
+    sendAnalyticsEvent(NFTEventName.NFT_FILTER_SELECTED, { filter_type: NFTFilterTypes.MARKETPLACE })
   }
 
   const checkbox = (
     <Checkbox checked={isCheckboxSelected} hovered={hovered} onChange={handleCheckbox}>
-      <Box as="span" color="textSecondary" marginLeft="4" paddingRight="12">
+      <Box as="span" color="neutral2" marginLeft="4" paddingRight="12">
         {count}
       </Box>
     </Checkbox>
@@ -111,7 +99,7 @@ const MarketplaceItem = ({
 
   const titleWithLogo = (
     <MarketNameWrapper>
-      <MarketplaceLogo src={getMarketLogoSrc(title)} />
+      {getMarketplaceIcon(title, '16')}
       {title}
     </MarketNameWrapper>
   )

@@ -1,20 +1,11 @@
-import { render } from 'test-utils'
+import { render } from 'test-utils/render'
 
 import Bag from './Bag'
 
-jest.mock('@web3-react/core', () => {
-  const web3React = jest.requireActual('@web3-react/core')
-  return {
-    useWeb3React: () => ({
-      account: '0x52270d8234b864dcAC9947f510CE9275A8a116Db',
-      isActive: true,
-    }),
-    ...web3React,
-  }
-})
-
 describe('Bag.tsx', () => {
   it('matches base snapshot', () => {
+    // todo: remove once zustand usage has been update such that `shallow` is no longer used
+    jest.spyOn(console, 'warn').mockImplementation(jest.fn)
     const { asFragment } = render(<Bag />)
     expect(asFragment()).toMatchSnapshot()
   })

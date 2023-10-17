@@ -1,19 +1,18 @@
 import { Trans } from '@lingui/macro'
-import * as Sentry from '@sentry/react'
 import { Currency, Price, Token } from '@uniswap/sdk-core'
 import { FeeAmount } from '@uniswap/v3-sdk'
 import { AutoColumn, ColumnCenter } from 'components/Column'
-import Loader from 'components/Loader'
+import Loader from 'components/Icons/LoadingSpinner'
 import { format } from 'd3'
 import { useColor } from 'hooks/useColor'
 import { saturate } from 'polished'
-import React, { ReactNode, useCallback, useMemo } from 'react'
+import { ReactNode, useCallback, useMemo } from 'react'
 import { BarChart2, CloudOff, Inbox } from 'react-feather'
 import { batch } from 'react-redux'
 import { Bound } from 'state/mint/v3/actions'
-import styled, { useTheme } from 'styled-components/macro'
+import styled, { useTheme } from 'styled-components'
+import { ThemedText } from 'theme/components'
 
-import { ThemedText } from '../../theme'
 import { Chart } from './Chart'
 import { useDensityChartData } from './hooks'
 import { ZoomLevels } from './types'
@@ -47,7 +46,8 @@ const ZOOM_LEVELS: Record<FeeAmount, ZoomLevels> = {
 
 const ChartWrapper = styled.div`
   position: relative;
-
+  width: 100%;
+  max-height: 200px;
   justify-content: center;
   align-content: center;
 `
@@ -77,11 +77,11 @@ export default function LiquidityChartRangeInput({
   onRightRangeInput,
   interactive,
 }: {
-  currencyA: Currency | undefined
-  currencyB: Currency | undefined
+  currencyA?: Currency
+  currencyB?: Currency
   feeAmount?: FeeAmount
   ticksAtLimit: { [bound in Bound]?: boolean | undefined }
-  price: number | undefined
+  price?: number
   priceLower?: Price<Token, Token>
   priceUpper?: Price<Token, Token>
   onLeftRangeInput: (typedValue: string) => void
@@ -156,10 +156,6 @@ export default function LiquidityChartRangeInput({
     [isSorted, price, ticksAtLimit]
   )
 
-  if (error) {
-    Sentry.captureMessage(error.toString(), 'log')
-  }
-
   const isUninitialized = !currencyA || !currencyB || (formattedData === undefined && !isLoading)
 
   return (
@@ -167,34 +163,34 @@ export default function LiquidityChartRangeInput({
       {isUninitialized ? (
         <InfoBox
           message={<Trans>Your position will appear here.</Trans>}
-          icon={<Inbox size={56} stroke={theme.textPrimary} />}
+          icon={<Inbox size={56} stroke={theme.neutral1} />}
         />
       ) : isLoading ? (
-        <InfoBox icon={<Loader size="40px" stroke={theme.deprecated_text4} />} />
+        <InfoBox icon={<Loader size="40px" stroke={theme.neutral2} />} />
       ) : error ? (
         <InfoBox
           message={<Trans>Liquidity data not available.</Trans>}
-          icon={<CloudOff size={56} stroke={theme.deprecated_text4} />}
+          icon={<CloudOff size={56} stroke={theme.neutral2} />}
         />
       ) : !formattedData || formattedData.length === 0 || !price ? (
         <InfoBox
           message={<Trans>There is no liquidity data.</Trans>}
-          icon={<BarChart2 size={56} stroke={theme.deprecated_text4} />}
+          icon={<BarChart2 size={56} stroke={theme.neutral2} />}
         />
       ) : (
         <ChartWrapper>
           <Chart
             data={{ series: formattedData, current: price }}
-            dimensions={{ width: 400, height: 200 }}
+            dimensions={{ width: 560, height: 200 }}
             margins={{ top: 10, right: 2, bottom: 20, left: 0 }}
             styles={{
               area: {
-                selection: theme.accentAction,
+                selection: theme.accent1,
               },
               brush: {
                 handle: {
-                  west: saturate(0.1, tokenAColor) ?? theme.accentFailure,
-                  east: saturate(0.1, tokenBColor) ?? theme.accentAction,
+                  west: saturate(0.1, tokenAColor) ?? theme.critical,
+                  east: saturate(0.1, tokenBColor) ?? theme.accent1,
                 },
               },
             }}

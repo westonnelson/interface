@@ -1,19 +1,20 @@
-import { WidgetSkeleton } from 'components/Widget'
-import { WIDGET_WIDTH } from 'components/Widget'
+import { SwapSkeleton } from 'components/swap/SwapSkeleton'
+import { useInfoExplorePageEnabled } from 'featureFlags/flags/infoExplore'
 import { ArrowLeft } from 'react-feather'
 import { useParams } from 'react-router-dom'
-import styled, { useTheme } from 'styled-components/macro'
+import styled, { useTheme } from 'styled-components'
+import { ThemedText } from 'theme/components'
 import { textFadeIn } from 'theme/styles'
 
 import { LoadingBubble } from '../loading'
-import { LogoContainer } from '../TokenTable/TokenRow'
 import { AboutContainer, AboutHeader } from './About'
 import { BreadcrumbNavLink } from './BreadcrumbNavLink'
-import { TokenPrice } from './PriceChart'
 import { StatPair, StatsWrapper, StatWrapper } from './StatsSection'
 
+const SWAP_COMPONENT_WIDTH = 360
+
 export const Hr = styled.hr`
-  background-color: ${({ theme }) => theme.backgroundOutline};
+  background-color: ${({ theme }) => theme.surface3};
   border: none;
   height: 0.5px;
 `
@@ -25,7 +26,7 @@ export const TokenDetailsLayout = styled.div`
 
   @media screen and (min-width: ${({ theme }) => theme.breakpoint.sm}px) {
     gap: 16px;
-    padding: 0 16px;
+    padding: 0 16px 52px;
   }
   @media screen and (min-width: ${({ theme }) => theme.breakpoint.md}px) {
     gap: 40px;
@@ -44,7 +45,7 @@ export const RightPanel = styled.div`
   display: none;
   flex-direction: column;
   gap: 20px;
-  width: ${WIDGET_WIDTH}px;
+  width: ${SWAP_COMPONENT_WIDTH}px;
 
   @media screen and (min-width: ${({ theme }) => theme.breakpoint.lg}px) {
     display: flex;
@@ -72,6 +73,8 @@ export const TokenInfoContainer = styled.div`
   justify-content: space-between;
   align-items: center;
   margin-bottom: 4px;
+  ${textFadeIn};
+  animation-duration: ${({ theme }) => theme.transition.duration.medium};
 `
 export const TokenNameCell = styled.div`
   display: flex;
@@ -79,7 +82,6 @@ export const TokenNameCell = styled.div`
   font-size: 20px;
   line-height: 28px;
   align-items: center;
-  ${textFadeIn}
 `
 /* Loading state bubbles */
 const DetailBubble = styled(LoadingBubble)`
@@ -159,7 +161,7 @@ function Wave() {
   const theme = useTheme()
   return (
     <svg width="416" height="160" xmlns="http://www.w3.org/2000/svg">
-      <path d="M 0 80 Q 104 10, 208 80 T 416 80" stroke={theme.backgroundOutline} fill="transparent" strokeWidth="2" />
+      <path d="M 0 80 Q 104 10, 208 80 T 416 80" stroke={theme.surface3} fill="transparent" strokeWidth="2" />
     </svg>
   )
 }
@@ -167,9 +169,9 @@ function Wave() {
 export function LoadingChart() {
   return (
     <ChartContainer>
-      <TokenPrice>
+      <ThemedText.HeadlineLarge>
         <PriceBubble />
-      </TokenPrice>
+      </ThemedText.HeadlineLarge>
       <Space heightSize={6} />
       <LoadingChartContainer>
         <div>
@@ -219,16 +221,17 @@ function LoadingStats() {
 /* Loading State: row component with loading bubbles */
 export default function TokenDetailsSkeleton() {
   const { chainName } = useParams<{ chainName?: string }>()
+  const isInfoExplorePageEnabled = useInfoExplorePageEnabled()
   return (
     <LeftPanel>
-      <BreadcrumbNavLink to={{ chainName } ? `/tokens/${chainName}` : `/explore`}>
+      <BreadcrumbNavLink
+        to={(isInfoExplorePageEnabled ? '/explore' : '') + (chainName ? `/tokens/${chainName}` : `/tokens`)}
+      >
         <ArrowLeft size={14} /> Tokens
       </BreadcrumbNavLink>
       <TokenInfoContainer>
         <TokenNameCell>
-          <LogoContainer>
-            <TokenLogoBubble />
-          </LogoContainer>
+          <TokenLogoBubble />
           <TitleBubble />
         </TokenNameCell>
       </TokenInfoContainer>
@@ -262,7 +265,7 @@ export function TokenDetailsPageSkeleton() {
     <TokenDetailsLayout>
       <TokenDetailsSkeleton />
       <RightPanel>
-        <WidgetSkeleton />
+        <SwapSkeleton />
       </RightPanel>
     </TokenDetailsLayout>
   )

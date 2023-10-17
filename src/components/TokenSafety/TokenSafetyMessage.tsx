@@ -1,27 +1,28 @@
 import { Trans } from '@lingui/macro'
-import { getWarningCopy, TOKEN_SAFETY_ARTICLE, Warning } from 'constants/tokenSafety'
-import { useTokenWarningColor } from 'hooks/useTokenWarningColor'
+import { displayWarningLabel, getWarningCopy, TOKEN_SAFETY_ARTICLE, Warning } from 'constants/tokenSafety'
+import { useTokenWarningColor, useTokenWarningTextColor } from 'hooks/useTokenWarningColor'
 import { AlertTriangle, Slash } from 'react-feather'
 import { Text } from 'rebass'
-import styled from 'styled-components/macro'
-import { ExternalLink } from 'theme'
+import styled from 'styled-components'
+import { ExternalLink } from 'theme/components'
 
-const Label = styled.div<{ color: string }>`
+const Label = styled.div<{ color: string; backgroundColor: string }>`
   width: 100%;
   padding: 12px 20px 16px;
-  background-color: ${({ color }) => color + '1F'};
+  background-color: ${({ backgroundColor }) => backgroundColor};
   border-radius: 16px;
+  border: 1px solid ${({ theme }) => theme.surface3};
   color: ${({ color }) => color};
 `
 
 const TitleRow = styled.div`
   align-items: center;
-  font-weight: 700;
+  font-weight: 535;
   display: inline-flex;
 `
 
 const Title = styled(Text)`
-  font-weight: 600;
+  font-weight: 535;
   font-size: 16px;
   line-height: 24px;
   margin-left: 7px;
@@ -31,29 +32,33 @@ const DetailsRow = styled.div`
   margin-top: 8px;
   font-size: 12px;
   line-height: 16px;
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
 `
 
 const StyledLink = styled(ExternalLink)`
-  color: ${({ theme }) => theme.textSecondary};
-  font-weight: 700;
+  color: ${({ theme }) => theme.accent1};
+
+  font-weight: 535;
 `
 
-type TokenWarningMessageProps = {
+type TokenSafetyMessageProps = {
   warning: Warning
   tokenAddress: string
 }
 
-export default function TokenWarningMessage({ warning, tokenAddress }: TokenWarningMessageProps) {
-  const color = useTokenWarningColor(warning.level)
+export default function TokenSafetyMessage({ warning, tokenAddress }: TokenSafetyMessageProps) {
+  const backgroundColor = useTokenWarningColor(warning.level)
+  const textColor = useTokenWarningTextColor(warning.level)
   const { heading, description } = getWarningCopy(warning)
 
   return (
-    <Label color={color}>
-      <TitleRow>
-        {warning.canProceed ? <AlertTriangle size="16px" /> : <Slash size="16px" />}
-        <Title marginLeft="7px">{warning.message}</Title>
-      </TitleRow>
+    <Label data-cy="token-safety-message" color={textColor} backgroundColor={backgroundColor}>
+      {displayWarningLabel(warning) && (
+        <TitleRow>
+          {warning.canProceed ? <AlertTriangle size="16px" /> : <Slash size="16px" />}
+          <Title marginLeft="7px">{warning.message}</Title>
+        </TitleRow>
+      )}
 
       <DetailsRow>
         {heading}

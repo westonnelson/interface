@@ -1,23 +1,31 @@
 import { Trans } from '@lingui/macro'
 import { useWeb3React } from '@web3-react/core'
+import { useAccountDrawer } from 'components/AccountDrawer'
 import Web3Status from 'components/Web3Status'
+import { useInfoExplorePageEnabled } from 'featureFlags/flags/infoExplore'
 import { chainIdToBackendName } from 'graphql/data/util'
+import { useDisableNFTRoutes } from 'hooks/useDisableNFTRoutes'
 import { useIsNftPage } from 'hooks/useIsNftPage'
+import { useIsPoolsPage } from 'hooks/useIsPoolsPage'
 import { Box } from 'nft/components/Box'
 import { Row } from 'nft/components/Flex'
 import { UniIcon } from 'nft/components/icons'
-import { ReactNode } from 'react'
+import { useProfilePageState } from 'nft/hooks'
+import { ProfilePageStateType } from 'nft/types'
+import { ReactNode, useCallback } from 'react'
 import { NavLink, NavLinkProps, useLocation, useNavigate } from 'react-router-dom'
-import styled from 'styled-components/macro'
+import styled from 'styled-components'
 
+import { useIsNavSearchInputVisible } from '../../nft/hooks/useIsNavSearchInputVisible'
 import { Bag } from './Bag'
+import Blur from './Blur'
 import { ChainSelector } from './ChainSelector'
 import { MenuDropdown } from './MenuDropdown'
 import { SearchBar } from './SearchBar'
 import * as styles from './style.css'
 
 const Nav = styled.nav`
-  padding: 20px 12px;
+  padding: ${({ theme }) => `${theme.navVerticalPad}px 12px`};
   width: 100%;
   height: ${({ theme }) => theme.navHeight}px;
   z-index: 2;
@@ -50,39 +58,64 @@ export const PageTabs = () => {
   const { chainId: connectedChainId } = useWeb3React()
   const chainName = chainIdToBackendName(connectedChainId)
 
-  const isPoolActive =
-    pathname.startsWith('/pool') ||
-    pathname.startsWith('/add') ||
-    pathname.startsWith('/remove') ||
-    pathname.startsWith('/increase') ||
-    pathname.startsWith('/find')
-
+  const isPoolActive = useIsPoolsPage()
   const isNftPage = useIsNftPage()
+
+  const shouldDisableNFTRoutes = useDisableNFTRoutes()
+  const infoExplorePageEnabled = useInfoExplorePageEnabled()
 
   return (
     <>
       <MenuItem href="/swap" isActive={pathname.startsWith('/swap')}>
         <Trans>Swap</Trans>
       </MenuItem>
-      <MenuItem href={`/tokens/${chainName.toLowerCase()}`} isActive={pathname.startsWith('/tokens')}>
-        <Trans>Tokens</Trans>
-      </MenuItem>
-      <MenuItem dataTestId="nft-nav" href="/nfts" isActive={isNftPage}>
-        <Trans>NFTs</Trans>
-      </MenuItem>
-      <MenuItem href="/pool" id="pool-nav-link" isActive={isPoolActive}>
-        <Trans>Pool</Trans>
-      </MenuItem>
+      {infoExplorePageEnabled ? (
+        <MenuItem href={`/explore/tokens/${chainName.toLowerCase()}`} isActive={pathname.startsWith('/explore')}>
+          <Trans>Explore</Trans>
+        </MenuItem>
+      ) : (
+        <MenuItem href={`/tokens/${chainName.toLowerCase()}`} isActive={pathname.startsWith('/tokens')}>
+          <Trans>Tokens</Trans>
+        </MenuItem>
+      )}
+      {!shouldDisableNFTRoutes && (
+        <MenuItem dataTestId="nft-nav" href="/nfts" isActive={isNftPage}>
+          <Trans>NFTs</Trans>
+        </MenuItem>
+      )}
+      <Box display={{ sm: 'flex', lg: 'none', xxl: 'flex' }} width="full">
+        <MenuItem href="/pools" dataTestId="pool-nav-link" isActive={isPoolActive}>
+          <Trans>Pools</Trans>
+        </MenuItem>
+      </Box>
+      <Box marginY="4">
+        <MenuDropdown />
+      </Box>
     </>
   )
 }
 
-const Navbar = () => {
+const Navbar = ({ blur }: { blur: boolean }) => {
   const isNftPage = useIsNftPage()
+  const sellPageState = useProfilePageState((state) => state.state)
   const navigate = useNavigate()
+  const isNavSearchInputVisible = useIsNavSearchInputVisible()
+
+  const [accountDrawerOpen, toggleAccountDrawer] = useAccountDrawer()
+
+  const handleUniIconClick = useCallback(() => {
+    if (accountDrawerOpen) {
+      toggleAccountDrawer()
+    }
+    navigate({
+      pathname: '/',
+      search: '?intro=true',
+    })
+  }, [accountDrawerOpen, navigate, toggleAccountDrawer])
 
   return (
     <>
+      {blur && <Blur />}
       <Nav>
         <Box display="flex" height="full" flexWrap="nowrap">
           <Box className={styles.leftSideContainer}>
@@ -90,10 +123,9 @@ const Navbar = () => {
               <UniIcon
                 width="48"
                 height="48"
+                data-testid="uniswap-logo"
                 className={styles.logo}
-                onClick={() => {
-                  navigate('/')
-                }}
+                onClick={handleUniIconClick}
               />
             </Box>
             {!isNftPage && (
@@ -101,22 +133,24 @@ const Navbar = () => {
                 <ChainSelector leftAlign={true} />
               </Box>
             )}
-            <Row gap={{ xl: '0', xxl: '8' }} display={{ sm: 'none', lg: 'flex' }}>
+            <Row display={{ sm: 'none', lg: 'flex' }}>
               <PageTabs />
             </Row>
           </Box>
-          <Box className={styles.searchContainer}>
+          <Box
+            className={styles.searchContainer}
+            {...(isNavSearchInputVisible && {
+              display: 'flex',
+            })}
+          >
             <SearchBar />
           </Box>
           <Box className={styles.rightSideContainer}>
             <Row gap="12">
-              <Box position="relative" display={{ sm: 'flex', xl: 'none' }}>
+              <Box position="relative" display={isNavSearchInputVisible ? 'none' : { sm: 'flex' }}>
                 <SearchBar />
               </Box>
-              <Box display={{ sm: 'none', lg: 'flex' }}>
-                <MenuDropdown />
-              </Box>
-              {isNftPage && <Bag />}
+              {isNftPage && sellPageState !== ProfilePageStateType.LISTING && <Bag />}
               {!isNftPage && (
                 <Box display={{ sm: 'none', lg: 'flex' }}>
                   <ChainSelector />

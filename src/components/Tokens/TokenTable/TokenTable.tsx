@@ -4,7 +4,7 @@ import { validateUrlChainParam } from 'graphql/data/util'
 import { ReactNode } from 'react'
 import { AlertTriangle } from 'react-feather'
 import { useParams } from 'react-router-dom'
-import styled from 'styled-components/macro'
+import styled from 'styled-components'
 
 import { MAX_WIDTH_MEDIA_BREAKPOINT } from '../constants'
 import { HeaderRow, LoadedRow, LoadingRow } from './TokenRow'
@@ -13,15 +13,14 @@ const GridContainer = styled.div`
   display: flex;
   flex-direction: column;
   max-width: ${MAX_WIDTH_MEDIA_BREAKPOINT};
-  background-color: ${({ theme }) => theme.backgroundSurface};
-  box-shadow: 0px 0px 1px rgba(0, 0, 0, 0.01), 0px 4px 8px rgba(0, 0, 0, 0.04), 0px 16px 24px rgba(0, 0, 0, 0.04),
-    0px 24px 32px rgba(0, 0, 0, 0.01);
+  background-color: ${({ theme }) => theme.surface1};
+
   margin-left: auto;
   margin-right: auto;
   border-radius: 12px;
   justify-content: center;
   align-items: center;
-  border: 1px solid ${({ theme }) => theme.backgroundOutline};
+  border: 1px solid ${({ theme }) => theme.surface3};
 `
 
 const TokenDataContainer = styled.div`
@@ -37,9 +36,9 @@ const NoTokenDisplay = styled.div`
   justify-content: center;
   width: 100%;
   height: 60px;
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   font-size: 16px;
-  font-weight: 500;
+  font-weight: 535;
   align-items: center;
   padding: 0px 28px;
   gap: 8px;
@@ -64,7 +63,7 @@ const LoadingRows = ({ rowCount }: { rowCount: number }) => (
   </>
 )
 
-export function LoadingTokenTable({ rowCount = PAGE_SIZE }: { rowCount?: number }) {
+function LoadingTokenTable({ rowCount = PAGE_SIZE }: { rowCount?: number }) {
   return (
     <GridContainer>
       <HeaderRow />
@@ -75,14 +74,14 @@ export function LoadingTokenTable({ rowCount = PAGE_SIZE }: { rowCount?: number 
   )
 }
 
-export default function TokenTable({ setRowCount }: { setRowCount: (c: number) => void }) {
-  // TODO: consider moving prefetched call into app.tsx and passing it here, use a preloaded call & updated on interval every 60s
+export default function TokenTable() {
   const chainName = validateUrlChainParam(useParams<{ chainName?: string }>().chainName)
-  const { tokens, sparklines } = useTopTokens(chainName)
-  setRowCount(tokens?.length ?? PAGE_SIZE)
+  const { tokens, tokenSortRank, loadingTokens, sparklines } = useTopTokens(chainName)
 
   /* loading and error state */
-  if (!tokens) {
+  if (loadingTokens && !tokens) {
+    return <LoadingTokenTable rowCount={PAGE_SIZE} />
+  } else if (!tokens) {
     return (
       <NoTokensState
         message={
@@ -102,13 +101,14 @@ export default function TokenTable({ setRowCount }: { setRowCount: (c: number) =
         <TokenDataContainer>
           {tokens.map(
             (token, index) =>
-              token && (
+              token?.address && (
                 <LoadedRow
-                  key={token?.address}
+                  key={token.address}
                   tokenListIndex={index}
                   tokenListLength={tokens.length}
                   token={token}
                   sparklineMap={sparklines}
+                  sortRank={tokenSortRank[token.address]}
                 />
               )
           )}

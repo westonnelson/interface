@@ -1,18 +1,18 @@
 import { formatEther } from '@ethersproject/units'
-import { Trace, useTrace } from '@uniswap/analytics'
-import { EventName, ModalName } from '@uniswap/analytics-events'
+import { Trans } from '@lingui/macro'
+import { InterfaceModalName, NFTEventName } from '@uniswap/analytics-events'
+import { Trace, useTrace } from 'analytics'
 import clsx from 'clsx'
 import { OpacityHoverState } from 'components/Common'
 import { Box } from 'nft/components/Box'
 import { Portal } from 'nft/components/common/Portal'
 import { Row } from 'nft/components/Flex'
-import { BackArrowIcon, ChevronUpIcon, LightningBoltIcon, UniIcon } from 'nft/components/icons'
+import { BackArrowIcon, ChevronUpIcon, LightningBoltIcon, TwitterIcon, UniIcon } from 'nft/components/icons'
 import { Overlay, stopPropagation } from 'nft/components/modals/Overlay'
-import { vars } from 'nft/css/sprinkles.css'
-import { useIsMobile, useSendTransaction, useTransactionResponse } from 'nft/hooks'
+import { themeVars, vars } from 'nft/css/sprinkles.css'
+import { useIsMobile, useNativeUsdPrice, useSendTransaction, useTransactionResponse } from 'nft/hooks'
 import { TxResponse, TxStateType } from 'nft/types'
 import {
-  fetchPrice,
   formatEthPrice,
   formatUsdPrice,
   formatUSDPriceWithCommas,
@@ -22,8 +22,7 @@ import {
 } from 'nft/utils'
 import { formatAssetEventProperties } from 'nft/utils/formatEventProperties'
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { Upload } from 'react-feather'
-import styled from 'styled-components/macro'
+import styled from 'styled-components'
 import { ExplorerDataType, getExplorerLink } from 'utils/getExplorerLink'
 
 import * as styles from './TransactionCompleteModal.css'
@@ -35,7 +34,7 @@ const UploadLink = styled.a`
   position: absolute;
   right: 32px;
   top: 32px;
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   cursor: pointer;
 
   ${OpacityHoverState}
@@ -47,9 +46,10 @@ const UploadLink = styled.a`
 `
 
 const TxCompleteModal = () => {
-  const [ethPrice, setEthPrice] = useState(3000)
+  const ethUsdPrice = useNativeUsdPrice()
   const [showUnavailable, setShowUnavailable] = useState(false)
   const txHash = useSendTransaction((state) => state.txHash)
+  const purchasedWithErc20 = useSendTransaction((state) => state.purchasedWithErc20)
   const setTxState = useSendTransaction((state) => state.setState)
   const txState = useSendTransaction((state) => state.state)
   const transactionStateRef = useRef(txState)
@@ -58,7 +58,7 @@ const TxCompleteModal = () => {
   const isMobile = useIsMobile()
   const txHashUrl = getExplorerLink(1, txHash, ExplorerDataType.TRANSACTION)
   const shouldShowModal = (txState === TxStateType.Success || txState === TxStateType.Failed) && txState
-  const trace = useTrace({ modal: ModalName.NFT_TX_COMPLETE })
+  const trace = useTrace({ modal: InterfaceModalName.NFT_TX_COMPLETE })
   const {
     nftsPurchased,
     nftsNotPurchased,
@@ -69,8 +69,8 @@ const TxCompleteModal = () => {
     totalUSDRefund,
     txFeeFiat,
   } = useMemo(() => {
-    return parseTransactionResponse(transactionResponse, ethPrice)
-  }, [transactionResponse, ethPrice])
+    return parseTransactionResponse(transactionResponse, ethUsdPrice)
+  }, [transactionResponse, ethUsdPrice])
 
   const toggleShowUnavailable = () => {
     setShowUnavailable(!showUnavailable)
@@ -80,12 +80,6 @@ const TxCompleteModal = () => {
     setTransactionResponse({} as TxResponse)
     setTxState(TxStateType.New)
   }
-
-  useEffect(() => {
-    fetchPrice().then((price) => {
-      setEthPrice(price ?? 0)
-    })
-  }, [])
 
   useEffect(() => {
     useSendTransaction.subscribe((state) => (transactionStateRef.current = state.state))
@@ -110,11 +104,12 @@ const TxCompleteModal = () => {
             {/* Successfully purchased NFTs */}
             {showPurchasedModal && (
               <Trace
-                name={EventName.NFT_BUY_BAG_SUCCEEDED}
+                name={NFTEventName.NFT_BUY_BAG_SUCCEEDED}
                 properties={{
                   buy_quantity: nftsPurchased.length,
-                  usd_value: parseFloat(formatEther(totalPurchaseValue)) * ethPrice,
+                  usd_value: parseFloat(formatEther(totalPurchaseValue)) * ethUsdPrice,
                   transaction_hash: txHash,
+                  using_erc20: purchasedWithErc20,
                   ...formatAssetEventProperties(nftsPurchased),
                   ...trace,
                 }}
@@ -123,11 +118,15 @@ const TxCompleteModal = () => {
                 <Box className={styles.successModal} onClick={stopPropagation}>
                   <UniIcon color={vars.color.pink400} width="36" height="36" className={styles.uniLogo} />
                   <Box display="flex" flexWrap="wrap" width="full" height="min">
-                    <h1 className={styles.title}>Complete!</h1>
-                    <p className={styles.subHeading}>Uniswap has granted your wish!</p>
+                    <h1 className={styles.title}>
+                      <Trans>Complete!</Trans>
+                    </h1>
+                    <p className={styles.subHeading}>
+                      <Trans>Uniswap has granted your wish!</Trans>
+                    </p>
                   </Box>
                   <UploadLink onClick={shareTweet} target="_blank">
-                    <Upload size={24} strokeWidth={2} />
+                    <TwitterIcon width={32} height={32} color={themeVars.colors.neutral2} />
                   </UploadLink>
                   <Box
                     className={styles.successAssetsContainer}
@@ -172,8 +171,8 @@ const TxCompleteModal = () => {
                       <Box>{formatEthPrice(totalPurchaseValue.toString())} ETH</Box>
                     </Row>
                     <a href={txHashUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                      <Box color="textSecondary" fontWeight="normal">
-                        View on Etherscan
+                      <Box color="neutral2" fontWeight="book">
+                        <Trans>View on Etherscan</Trans>
                       </Box>
                     </a>
                   </Box>
@@ -185,7 +184,7 @@ const TxCompleteModal = () => {
               /* Showing both purchases & refunds */
               (showPurchasedModal ? (
                 <Trace
-                  name={EventName.NFT_BUY_BAG_REFUNDED}
+                  name={NFTEventName.NFT_BUY_BAG_REFUNDED}
                   properties={{
                     buy_quantity: nftsPurchased.length,
                     fail_quantity: nftsNotPurchased.length,
@@ -197,7 +196,6 @@ const TxCompleteModal = () => {
                 >
                   <Box className={styles.mixedRefundModal} onClick={stopPropagation}>
                     <Box
-                      height="full"
                       display="inline-flex"
                       flexWrap="wrap"
                       width={{ sm: 'full', md: 'half' }}
@@ -207,7 +205,7 @@ const TxCompleteModal = () => {
                       <p className={styles.subtitle}>Instant Refund</p>
                       <p className={styles.interStd}>
                         Uniswap returned{' '}
-                        <span style={{ fontWeight: '700' }}>{formatEthPrice(totalRefundValue.toString())} ETH</span>{' '}
+                        <span style={{ fontWeight: '535' }}>{formatEthPrice(totalRefundValue.toString())} ETH</span>{' '}
                         back to your wallet for unavailable items.
                       </p>
                       <Box
@@ -237,12 +235,7 @@ const TxCompleteModal = () => {
                           width={{ sm: 'half', md: 'auto' }}
                         >
                           <a href={txHashUrl} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-                            <Box
-                              fontWeight="normal"
-                              marginTop="16"
-                              color="textSecondary"
-                              className={styles.totalEthCost}
-                            >
+                            <Box fontWeight="book" marginTop="16" color="neutral2" className={styles.totalEthCost}>
                               View on Etherscan
                             </Box>
                           </a>
@@ -262,7 +255,7 @@ const TxCompleteModal = () => {
               ) : (
                 // Only showing when all assets are unavailable
                 <Trace
-                  name={EventName.NFT_BUY_BAG_REFUNDED}
+                  name={NFTEventName.NFT_BUY_BAG_REFUNDED}
                   properties={{
                     buy_quantity: 0,
                     fail_quantity: nftsNotPurchased.length,
@@ -306,10 +299,7 @@ const TxCompleteModal = () => {
                               ))}
                             </Box>
                           )}
-                          <Box
-                            color={showUnavailable ? 'textPrimary' : 'textSecondary'}
-                            className={styles.unavailableText}
-                          >
+                          <Box color={showUnavailable ? 'neutral1' : 'neutral2'} className={styles.unavailableText}>
                             Unavailable
                             <Box className={styles.unavailableItems}>
                               {nftsNotPurchased.length} item{nftsNotPurchased.length === 1 ? '' : 's'}
@@ -321,7 +311,7 @@ const TxCompleteModal = () => {
                       {(showUnavailable || nftsNotPurchased.length < 3) &&
                         nftsNotPurchased.map((asset, index) => (
                           <Box
-                            backgroundColor="backgroundSurface"
+                            backgroundColor="surface1"
                             display="flex"
                             padding="4"
                             marginBottom="1"
@@ -340,7 +330,7 @@ const TxCompleteModal = () => {
                                   ETH
                                 </p>
                               </Box>
-                              <Box color="textPrimary" className={styles.totalUsdRefund}>
+                              <Box color="neutral1" className={styles.totalUsdRefund}>
                                 {txState === TxStateType.Success ? 'Refunded' : asset.name}
                               </Box>
                             </Box>
@@ -364,7 +354,7 @@ const TxCompleteModal = () => {
                     <Box
                       as="button"
                       border="none"
-                      backgroundColor="accentAction"
+                      backgroundColor="accent1"
                       cursor="pointer"
                       className={styles.returnButton}
                       type="button"

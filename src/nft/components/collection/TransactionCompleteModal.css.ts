@@ -5,7 +5,6 @@ export const modalContainer = style([
   sprinkles({
     display: 'flex',
     position: 'fixed',
-    flexWrap: 'wrap',
     height: 'full',
     width: { sm: 'full', md: 'min' },
     left: { sm: '0', md: '1/2' },
@@ -31,7 +30,7 @@ export const modalContainer = style([
 
 export const successModal = style([
   sprinkles({
-    background: 'backgroundSurface',
+    background: 'surface1',
     borderRadius: '20',
     display: 'flex',
     flexWrap: 'wrap',
@@ -62,8 +61,8 @@ export const uniLogo = style([
 
 export const title = style([
   sprinkles({
-    fontWeight: 'bold',
-    color: 'textPrimary',
+    fontWeight: 'medium',
+    color: 'neutral1',
     fontSize: '20',
     marginLeft: 'auto',
     marginRight: 'auto',
@@ -77,7 +76,7 @@ export const title = style([
 
 export const walletAddress = style([
   sprinkles({
-    color: 'textSecondary',
+    color: 'neutral2',
     fontSize: '10',
     display: 'flex',
     alignItems: 'center',
@@ -95,9 +94,9 @@ export const walletAddress = style([
 
 export const addressHash = style([
   sprinkles({
-    color: 'textSecondary',
+    color: 'neutral2',
     fontSize: '10',
-    fontWeight: 'normal',
+    fontWeight: 'book',
     marginTop: '4',
   }),
   {
@@ -108,7 +107,7 @@ export const addressHash = style([
 
 export const subHeading = style([
   sprinkles({
-    color: 'textPrimary',
+    color: 'neutral1',
     fontSize: '14',
     width: 'full',
     textAlign: 'center',
@@ -162,7 +161,7 @@ export const successAssetImageGrid = style([
 ])
 
 export const overflowFade = style({
-  backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, ${themeVars.colors.backgroundSurface} 100%)`,
+  backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, ${themeVars.colors.surface1} 100%)`,
   width: '576px',
   height: '20px',
   marginLeft: '32px',
@@ -172,7 +171,7 @@ export const overflowFade = style({
 export const totalEthCost = style([
   sprinkles({
     fontSize: '14',
-    color: 'textSecondary',
+    color: 'neutral2',
     marginTop: '1',
     marginBottom: '0',
   }),
@@ -183,7 +182,7 @@ export const totalEthCost = style([
 
 export const bottomBar = style([
   sprinkles({
-    color: 'textPrimary',
+    color: 'neutral1',
     fontSize: '14',
   }),
 ])
@@ -192,9 +191,9 @@ export const button = style([
   sprinkles({
     height: '40',
     textAlign: 'center',
-    fontWeight: 'bold',
+    fontWeight: 'medium',
     fontSize: '14',
-    color: 'textPrimary',
+    color: 'neutral1',
     display: 'flex',
     alignItems: 'center',
     marginBottom: 'auto',
@@ -212,7 +211,7 @@ export const button = style([
 
 export const mixedRefundModal = style([
   sprinkles({
-    background: 'backgroundSurface',
+    background: 'surface1',
     borderRadius: '20',
     display: 'flex',
     flexWrap: 'wrap',
@@ -238,8 +237,8 @@ export const mixedRefundModal = style([
 
 export const subtitle = style([
   sprinkles({
-    color: 'textPrimary',
-    fontWeight: 'bold',
+    color: 'neutral1',
+    fontWeight: 'medium',
     fontSize: '16',
     marginLeft: '4',
     marginRight: 'auto',
@@ -253,7 +252,7 @@ export const subtitle = style([
 
 export const interStd = style([
   sprinkles({
-    color: 'textPrimary',
+    color: 'neutral1',
     fontSize: '14',
     marginLeft: 'auto',
     marginRight: 'auto',
@@ -268,7 +267,7 @@ export const interStd = style([
 
 export const totalUsdRefund = style([
   sprinkles({
-    color: 'textSecondary',
+    color: 'neutral2',
     fontSize: '12',
     marginLeft: '4',
   }),
@@ -310,7 +309,7 @@ export const refundAssetImage = style([
   }),
   {
     boxSizing: 'border-box',
-    border: `2px solid ${themeVars.colors.backgroundSurface}`,
+    border: `2px solid ${themeVars.colors.surface1}`,
     filter: 'grayscale(100%)',
   },
 ])
@@ -322,7 +321,7 @@ export const refundOverflowFade = style([
     zIndex: '1',
   }),
   {
-    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, ${themeVars.colors.backgroundSurface} 100%)`,
+    backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, ${themeVars.colors.surface1} 100%)`,
     height: '30px',
     marginRight: '18px',
     marginTop: '-20px',
@@ -331,7 +330,7 @@ export const refundOverflowFade = style([
 
 export const fullRefundModal = style([
   sprinkles({
-    background: 'backgroundSurface',
+    background: 'surface1',
     borderRadius: '20',
     display: 'flex',
     flexWrap: 'wrap',
@@ -351,10 +350,10 @@ export const returnButton = style([
   sprinkles({
     height: '40',
     textAlign: 'center',
-    fontWeight: 'bold',
+    fontWeight: 'medium',
     fontSize: '14',
-    color: 'explicitWhite',
-    backgroundColor: 'accentAction',
+    color: 'white',
+    backgroundColor: 'accent1',
     display: 'flex',
     alignItems: 'center',
     marginLeft: 'auto',
@@ -370,7 +369,7 @@ export const returnButton = style([
 
 export const fullRefundBackArrow = style([
   sprinkles({
-    fill: 'explicitWhite',
+    fill: 'white',
     marginLeft: '12',
     marginRight: '28',
   }),
@@ -378,7 +377,7 @@ export const fullRefundBackArrow = style([
 
 export const bodySmall = style([
   sprinkles({
-    color: 'textPrimary',
+    color: 'neutral1',
     fontSize: '14',
     marginLeft: 'auto',
     marginRight: 'auto',
@@ -402,7 +401,7 @@ export const allUnavailableAssets = style([
 ])
 
 export const fullRefundOverflowFade = style({
-  backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, ${themeVars.colors.backgroundSurface} 100%)`,
+  backgroundImage: `linear-gradient(180deg, rgba(255, 255, 255, 0) 0%, ${themeVars.colors.surface1} 100%)`,
   width: '266px',
   height: '20px',
   marginTop: '-20px',
@@ -412,7 +411,7 @@ export const fullRefundOverflowFade = style({
 
 export const toggleUnavailable = style([
   sprinkles({
-    backgroundColor: 'backgroundSurface',
+    backgroundColor: 'surface1',
     borderRadius: '8',
     display: 'flex',
     flexWrap: 'wrap',
@@ -432,7 +431,7 @@ export const unavailableAssetPreview = style([
   }),
   {
     boxSizing: 'border-box',
-    border: `2px solid ${themeVars.colors.backgroundSurface}`,
+    border: `2px solid ${themeVars.colors.surface1}`,
     marginLeft: '-16px',
     filter: 'grayscale(100%)',
   },
@@ -440,8 +439,8 @@ export const unavailableAssetPreview = style([
 
 export const unavailableText = style([
   sprinkles({
-    color: 'textSecondary',
-    fontWeight: 'normal',
+    color: 'neutral2',
+    fontWeight: 'book',
     fontSize: '14',
     paddingTop: '8',
     paddingBottom: '8',
@@ -455,7 +454,7 @@ export const unavailableText = style([
 
 export const unavailableItems = style([
   sprinkles({
-    fontWeight: 'normal',
+    fontWeight: 'book',
     fontSize: '12',
     display: 'flex',
   }),

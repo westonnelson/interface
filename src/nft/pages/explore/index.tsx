@@ -1,12 +1,10 @@
-import { Trace } from '@uniswap/analytics'
-import { PageName } from '@uniswap/analytics-events'
+import { InterfacePageName } from '@uniswap/analytics-events'
+import { Trace } from 'analytics'
 import Banner from 'nft/components/explore/Banner'
 import TrendingCollections from 'nft/components/explore/TrendingCollections'
-import { WelcomeModal } from 'nft/components/explore/WelcomeModal'
 import { useBag } from 'nft/hooks'
 import { useEffect } from 'react'
-import { useHideNFTWelcomeModal } from 'state/user/hooks'
-import styled from 'styled-components/macro'
+import styled from 'styled-components'
 
 const ExploreContainer = styled.div`
   display: flex;
@@ -25,7 +23,6 @@ const ExploreContainer = styled.div`
 
 const NftExplore = () => {
   const setBagExpanded = useBag((state) => state.setBagExpanded)
-  const [isModalHidden, hideModal] = useHideNFTWelcomeModal()
 
   useEffect(() => {
     setBagExpanded({ bagExpanded: false, manualClose: false })
@@ -33,12 +30,11 @@ const NftExplore = () => {
 
   return (
     <>
-      <Trace page={PageName.NFT_EXPLORE_PAGE} shouldLogImpression>
+      <Trace page={InterfacePageName.NFT_EXPLORE_PAGE} shouldLogImpression>
         <ExploreContainer>
           <Banner />
           <TrendingCollections />
         </ExploreContainer>
-        {!isModalHidden && <WelcomeModal onDismissed={hideModal} />}
       </Trace>
     </>
   )

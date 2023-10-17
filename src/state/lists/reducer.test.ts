@@ -1,7 +1,8 @@
+import tokenSafetyLookup from 'constants/tokenSafetyLookup'
 import { createStore, Store } from 'redux'
+import { updateVersion } from 'state/global/actions'
 
 import { DEFAULT_LIST_OF_LISTS } from '../../constants/lists'
-import { updateVersion } from '../global/actions'
 import { acceptListUpdate, addList, fetchTokenList, removeList } from './actions'
 import reducer, { ListsState } from './reducer'
 
@@ -79,10 +80,15 @@ describe('list reducer', () => {
     })
 
     describe('fulfilled', () => {
+      beforeEach(() => {
+        jest.spyOn(tokenSafetyLookup, 'update').mockReturnValue(undefined)
+      })
+
       it('saves the list', () => {
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: STUB_TOKEN_LIST, requestId: 'request-id', url: 'fake-url' })
         )
+        expect(tokenSafetyLookup.update).toHaveBeenCalled()
         expect(store.getState()).toEqual({
           byUrl: {
             'fake-url': {
@@ -100,9 +106,11 @@ describe('list reducer', () => {
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: STUB_TOKEN_LIST, requestId: 'request-id', url: 'fake-url' })
         )
+        expect(tokenSafetyLookup.update).toHaveBeenCalled()
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: STUB_TOKEN_LIST, requestId: 'request-id', url: 'fake-url' })
         )
+        expect(tokenSafetyLookup.update).toHaveBeenCalledTimes(1) // should not be called again
         expect(store.getState()).toEqual({
           byUrl: {
             'fake-url': {
@@ -120,10 +128,11 @@ describe('list reducer', () => {
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: STUB_TOKEN_LIST, requestId: 'request-id', url: 'fake-url' })
         )
-
+        expect(tokenSafetyLookup.update).toHaveBeenCalled()
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: PATCHED_STUB_LIST, requestId: 'request-id', url: 'fake-url' })
         )
+        expect(tokenSafetyLookup.update).toHaveBeenCalledTimes(1) // should not be called again
         expect(store.getState()).toEqual({
           byUrl: {
             'fake-url': {
@@ -140,10 +149,11 @@ describe('list reducer', () => {
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: STUB_TOKEN_LIST, requestId: 'request-id', url: 'fake-url' })
         )
-
+        expect(tokenSafetyLookup.update).toHaveBeenCalled()
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: MINOR_UPDATED_STUB_LIST, requestId: 'request-id', url: 'fake-url' })
         )
+        expect(tokenSafetyLookup.update).toHaveBeenCalledTimes(1) // should not be called again
         expect(store.getState()).toEqual({
           byUrl: {
             'fake-url': {
@@ -160,10 +170,11 @@ describe('list reducer', () => {
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: STUB_TOKEN_LIST, requestId: 'request-id', url: 'fake-url' })
         )
-
+        expect(tokenSafetyLookup.update).toHaveBeenCalled()
         store.dispatch(
           fetchTokenList.fulfilled({ tokenList: MAJOR_UPDATED_STUB_LIST, requestId: 'request-id', url: 'fake-url' })
         )
+        expect(tokenSafetyLookup.update).toHaveBeenCalledTimes(1) // should not be called again
         expect(store.getState()).toEqual({
           byUrl: {
             'fake-url': {
@@ -386,18 +397,19 @@ describe('list reducer', () => {
 
       it('each of those initialized lists is empty', () => {
         const byUrl = store.getState().byUrl
-        // note we don't expect the uniswap default list to be prepopulated
-        // this is ok.
-        Object.keys(byUrl).forEach((url) => {
-          if (url !== 'https://unpkg.com/@uniswap/default-token-list@latest/uniswap-default.tokenlist.json') {
-            expect(byUrl[url]).toEqual({
+        Object.entries(byUrl)
+          // We don't expect the Uniswap default list to be prepopulated
+          .filter(
+            ([url]) => url !== 'https://unpkg.com/@uniswap/default-token-list@latest/uniswap-default.tokenlist.json'
+          )
+          .forEach(([, state]) => {
+            expect(state).toEqual({
               error: null,
               current: null,
               loadingRequestId: null,
               pendingUpdate: null,
             })
-          }
-        })
+          })
       })
 
       it('sets initialized lists', () => {

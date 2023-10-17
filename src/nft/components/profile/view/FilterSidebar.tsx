@@ -25,9 +25,10 @@ import { easings, useSpring } from 'react-spring'
 import AutoSizer from 'react-virtualized-auto-sizer'
 import { FixedSizeList, ListOnItemsRenderedProps } from 'react-window'
 import InfiniteLoader from 'react-window-infinite-loader'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 import { TRANSITION_DURATIONS } from 'theme/styles'
+import noop from 'utils/noop'
 
 import { WALLET_COLLECTIONS_PAGINATION_LIMIT } from './ProfilePage'
 import * as styles from './ProfilePage.css'
@@ -62,7 +63,7 @@ const LoadingCollectionItem = ({ style }: { style?: CSSProperties }) => {
         <SmallLoadingBubble />
         <LongLoadingBubble />
       </Row>
-      <Box as="span" borderColor="backgroundOutline" className={checkbox} aria-hidden="true" />
+      <Box as="span" borderColor="surface3" className={checkbox} aria-hidden="true" />
     </Row>
   )
 }
@@ -115,7 +116,7 @@ export const FilterSidebar = ({
       zIndex={{ sm: 'modal', md: 'auto' }}
       display={isFiltersExpanded ? 'flex' : 'none'}
       style={{ transform: isMobile ? undefined : sidebarX.to((x) => `translateX(${x}px)`) }}
-      background="backgroundBackdrop"
+      background="surface2"
     >
       <Box
         paddingTop={{ sm: '24', md: '0' }}
@@ -129,7 +130,7 @@ export const FilterSidebar = ({
             <XMarkIcon
               height={28}
               width={28}
-              fill={themeVars.colors.textPrimary}
+              fill={themeVars.colors.neutral1}
               onClick={() => setFiltersExpanded(false)}
             />
           </MobileMenuHeader>
@@ -190,7 +191,7 @@ const CollectionSelect = ({
 
   // Only load 1 page of items at a time.
   // Pass an empty callback to InfiniteLoader in case it asks us to load more than once.
-  const loadMoreItems = isFetchingNextPage ? () => null : fetchNextPage
+  const loadMoreItems = isFetchingNextPage ? noop : fetchNextPage
 
   // Every row is loaded except for our loading indicator row.
   const isItemLoaded = useCallback(
@@ -314,7 +315,7 @@ const CollectionItem = ({
       maxWidth="full"
       overflowX="hidden"
       overflowY="hidden"
-      fontWeight="normal"
+      fontWeight="book"
       className={styles.subRowHover}
       justifyContent="space-between"
       cursor="pointer"
@@ -348,7 +349,7 @@ const CollectionItem = ({
       </Row>
 
       <Checkbox checked={isChecked(collection.address)} hovered={hovered} onChange={handleCheckbox}>
-        <Box as="span" color="textTertiary" marginRight="12" marginLeft="auto">
+        <Box as="span" color="neutral3" marginRight="12" marginLeft="auto">
           {collection.count}
         </Box>
       </Checkbox>

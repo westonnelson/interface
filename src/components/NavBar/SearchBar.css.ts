@@ -1,5 +1,5 @@
 import { style } from '@vanilla-extract/css'
-import { buttonTextSmall, subhead, subheadSmall } from 'nft/css/common.css'
+import { subhead, subheadSmall } from 'nft/css/common.css'
 
 import { breakpoints, sprinkles, vars } from '../../nft/css/sprinkles.css'
 
@@ -11,11 +11,11 @@ const DESKTOP_NAVBAR_WIDTH_XXL = 640
 
 const baseSearchStyle = style([
   sprinkles({
-    paddingY: '12',
+    paddingY: '8',
     width: { sm: 'viewWidth' },
     borderStyle: 'solid',
     borderWidth: '1px',
-    borderColor: 'searchOutline',
+    borderColor: 'surface3',
   }),
   {
     backdropFilter: 'blur(60px)',
@@ -50,41 +50,38 @@ const baseSearchNftStyle = style([
   },
 ])
 
-export const searchBarContainer = style([
-  sprinkles({
-    right: '0',
-    top: '0',
-    zIndex: '3',
-    display: 'inline-block',
-  }),
-])
-
 export const searchBarContainerNft = style([
   sprinkles({
     right: '0',
     top: '0',
     zIndex: '3',
-    display: 'inline-block',
+    display: 'flex',
+    maxHeight: 'searchResultsMaxHeight',
+    overflow: 'hidden',
   }),
   {
     backdropFilter: 'blur(60px)',
-    borderRadius: '12px',
+    borderRadius: '16px',
   },
 ])
+
+export const searchBarContainerDisableBlur = style({
+  backdropFilter: 'none',
+})
 
 export const searchBar = style([
   baseSearchStyle,
   sprinkles({
-    color: 'textSecondary',
-    paddingX: '16',
+    color: 'neutral2',
+    paddingX: '12',
   }),
 ])
 
 export const nftSearchBar = style([
   baseSearchNftStyle,
   sprinkles({
-    color: 'textSecondary',
-    paddingX: '16',
+    color: 'neutral2',
+    paddingX: '12',
   }),
   {
     backdropFilter: 'blur(60px)',
@@ -94,9 +91,9 @@ export const nftSearchBar = style([
 export const searchBarInput = style([
   sprinkles({
     padding: '0',
-    fontWeight: 'normal',
     fontSize: '16',
-    color: { default: 'textPrimary', placeholder: 'textSecondary' },
+    fontWeight: 'book',
+    color: { default: 'neutral1', placeholder: 'neutral2' },
     border: 'none',
     background: 'none',
     lineHeight: '24',
@@ -107,16 +104,20 @@ export const searchBarInput = style([
 export const searchBarDropdownNft = style([
   baseSearchNftStyle,
   sprinkles({
-    borderBottomLeftRadius: '12',
-    borderBottomRightRadius: '12',
+    borderBottomLeftRadius: '16',
+    borderBottomRightRadius: '16',
     height: { sm: 'viewHeight', md: 'auto' },
-    backgroundColor: 'backgroundSurface',
+    backgroundColor: 'surface1',
   }),
   {
     backdropFilter: 'blur(60px)',
     borderTop: 'none',
   },
 ])
+
+export const searchBarScrollable = sprinkles({
+  overflowY: 'auto',
+})
 
 export const suggestionRow = style([
   sprinkles({
@@ -163,7 +164,7 @@ export const primaryText = style([
     overflow: 'hidden',
     whiteSpace: 'nowrap',
     textOverflow: 'ellipsis',
-    color: 'textPrimary',
+    color: 'neutral1',
   }),
   {
     lineHeight: '24px',
@@ -171,9 +172,9 @@ export const primaryText = style([
 ])
 
 export const secondaryText = style([
-  buttonTextSmall,
+  subheadSmall,
   sprinkles({
-    color: 'textSecondary',
+    color: 'neutral2',
   }),
   {
     lineHeight: '20px',
@@ -183,7 +184,7 @@ export const secondaryText = style([
 export const imageHolder = style([
   suggestionImage,
   sprinkles({
-    background: 'backgroundModule',
+    background: 'surface2',
     flexShrink: '0',
   }),
 ])
@@ -196,7 +197,7 @@ export const suggestionIcon = sprinkles({
 export const sectionHeader = style([
   subheadSmall,
   sprinkles({
-    color: 'textSecondary',
+    color: 'neutral2',
   }),
   {
     lineHeight: '20px',

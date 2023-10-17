@@ -1,17 +1,14 @@
 import { Trans } from '@lingui/macro'
-import { darken } from 'polished'
+import { ChainId } from '@uniswap/sdk-core'
+import { getChainInfo } from 'constants/chainInfo'
 import { useState } from 'react'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 import { textFadeIn } from 'theme/styles'
 
 import Resource from './Resource'
+import { NoInfoAvailable, TRUNCATE_CHARACTER_COUNT, truncateDescription, TruncateDescriptionButton } from './shared'
 
-const NoInfoAvailable = styled.span`
-  color: ${({ theme }) => theme.textTertiary};
-  font-weight: 400;
-  font-size: 16px;
-`
 const TokenDescriptionContainer = styled.div`
   overflow: hidden;
   text-overflow: ellipsis;
@@ -21,32 +18,6 @@ const TokenDescriptionContainer = styled.div`
   line-height: 24px;
   white-space: pre-wrap;
 `
-
-const TruncateDescriptionButton = styled.div`
-  color: ${({ theme }) => theme.textSecondary};
-  font-weight: 400;
-  font-size: 0.85em;
-  padding-top: 0.5em;
-
-  &:hover,
-  &:focus {
-    color: ${({ theme }) => darken(0.1, theme.textSecondary)};
-    cursor: pointer;
-  }
-`
-
-const truncateDescription = (desc: string) => {
-  //trim the string to the maximum length
-  let tokenDescriptionTruncated = desc.slice(0, TRUNCATE_CHARACTER_COUNT)
-  //re-trim if we are in the middle of a word
-  tokenDescriptionTruncated = `${tokenDescriptionTruncated.slice(
-    0,
-    Math.min(tokenDescriptionTruncated.length, tokenDescriptionTruncated.lastIndexOf(' '))
-  )}...`
-  return tokenDescriptionTruncated
-}
-
-const TRUNCATE_CHARACTER_COUNT = 400
 
 export const AboutContainer = styled.div`
   gap: 16px;
@@ -65,19 +36,22 @@ const ResourcesContainer = styled.div`
 
 type AboutSectionProps = {
   address: string
-  description?: string | null | undefined
-  homepageUrl?: string | null | undefined
-  twitterName?: string | null | undefined
+  chainId: ChainId
+  description?: string | null
+  homepageUrl?: string | null
+  twitterName?: string | null
 }
 
-export function AboutSection({ address, description, homepageUrl, twitterName }: AboutSectionProps) {
+export function AboutSection({ address, chainId, description, homepageUrl, twitterName }: AboutSectionProps) {
   const [isDescriptionTruncated, setIsDescriptionTruncated] = useState(true)
   const shouldTruncate = !!description && description.length > TRUNCATE_CHARACTER_COUNT
 
   const tokenDescription = shouldTruncate && isDescriptionTruncated ? truncateDescription(description) : description
 
+  const { explorer, infoLink } = getChainInfo(chainId)
+
   return (
-    <AboutContainer>
+    <AboutContainer data-testid="token-details-about-section">
       <AboutHeader>
         <Trans>About</Trans>
       </AboutHeader>
@@ -98,9 +72,12 @@ export function AboutSection({ address, description, homepageUrl, twitterName }:
       <ThemedText.SubHeaderSmall>
         <Trans>Links</Trans>
       </ThemedText.SubHeaderSmall>
-      <ResourcesContainer>
-        <Resource name="Etherscan" link={`https://etherscan.io/address/${address}`} />
-        <Resource name="More analytics" link={`https://info.uniswap.org/#/tokens/${address}`} />
+      <ResourcesContainer data-cy="resources-container">
+        <Resource
+          name={chainId === ChainId.MAINNET ? 'Etherscan' : 'Block Explorer'}
+          link={`${explorer}${address === 'NATIVE' ? '' : 'address/' + address}`}
+        />
+        <Resource name="More analytics" link={`${infoLink}tokens/${address}`} />
         {homepageUrl && <Resource name="Website" link={homepageUrl} />}
         {twitterName && <Resource name="Twitter" link={`https://twitter.com/${twitterName}`} />}
       </ResourcesContainer>

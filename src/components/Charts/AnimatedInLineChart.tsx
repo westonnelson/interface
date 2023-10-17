@@ -1,18 +1,19 @@
 import { Group } from '@visx/group'
 import { LinePath } from '@visx/shape'
-import { easeCubicInOut } from 'd3'
+import { easeSinOut } from 'd3'
+import ms from 'ms'
 import React from 'react'
 import { useEffect, useRef, useState } from 'react'
 import { animated, useSpring } from 'react-spring'
-import { useTheme } from 'styled-components/macro'
+import { useTheme } from 'styled-components'
 
 import { LineChartProps } from './LineChart'
 
 type AnimatedInLineChartProps<T> = Omit<LineChartProps<T>, 'height' | 'width' | 'children'>
 
 const config = {
-  duration: 800,
-  easing: easeCubicInOut,
+  duration: ms(`0.8s`),
+  easing: easeSinOut,
 }
 
 // code reference: https://airbnb.io/visx/lineradial
@@ -56,7 +57,7 @@ function AnimatedInLineChart<T>({
     }
   })
   const theme = useTheme()
-  const lineColor = color ?? theme.accentAction
+  const lineColor = color ?? theme.accent1
 
   return (
     <Group top={marginTop}>
@@ -91,4 +92,4 @@ function AnimatedInLineChart<T>({
   )
 }
 
-export default AnimatedInLineChart
+export default React.memo(AnimatedInLineChart) as typeof AnimatedInLineChart

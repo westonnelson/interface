@@ -6,18 +6,11 @@ import { sprinkles } from '../../nft/css/sprinkles.css'
 export const ChainSelector = style([
   lightGrayOverlayOnHover,
   sprinkles({
-    borderRadius: '8',
-    height: '40',
+    borderRadius: '20',
+    height: '36',
     cursor: 'pointer',
     border: 'none',
-    color: 'textPrimary',
+    color: 'neutral1',
     background: 'none',
-  }),
-])
-
-export const Image = style([
-  sprinkles({
-    width: '20',
-    height: '20',
   }),
 ])

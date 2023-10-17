@@ -4,13 +4,20 @@ import { ButtonPrimary } from 'components/Button'
 import { AutoColumn } from 'components/Column'
 import CurrencyLogo from 'components/Logo/CurrencyLogo'
 import TokenSafetyLabel from 'components/TokenSafety/TokenSafetyLabel'
-import { checkWarning, getWarningCopy, TOKEN_SAFETY_ARTICLE, Warning } from 'constants/tokenSafety'
+import {
+  checkWarning,
+  displayWarningLabel,
+  getWarningCopy,
+  NotFoundWarning,
+  TOKEN_SAFETY_ARTICLE,
+  Warning,
+} from 'constants/tokenSafety'
 import { useToken } from 'hooks/Tokens'
 import { ExternalLink as LinkIconFeather } from 'react-feather'
 import { Text } from 'rebass'
 import { useAddUserToken } from 'state/user/hooks'
-import styled from 'styled-components/macro'
-import { ButtonText, CopyLinkIcon, ExternalLink } from 'theme'
+import styled from 'styled-components'
+import { ButtonText, CopyLinkIcon, ExternalLink } from 'theme/components'
 import { ExplorerDataType, getExplorerLink } from 'utils/getExplorerLink'
 
 const Wrapper = styled.div`
@@ -23,7 +30,7 @@ const Wrapper = styled.div`
 
 const Container = styled.div`
   width: 100%;
-  padding: 32px 50px;
+  padding: 32px 40px;
   display: flex;
   flex-flow: column;
   align-items: center;
@@ -48,22 +55,22 @@ const InfoText = styled(Text)`
 const StyledButton = styled(ButtonPrimary)`
   margin-top: 24px;
   width: 100%;
-  font-weight: 600;
+  font-weight: 535;
 `
 
 const StyledCancelButton = styled(ButtonText)`
   margin-top: 16px;
-  color: ${({ theme }) => theme.textSecondary};
-  font-weight: 600;
+  color: ${({ theme }) => theme.neutral2};
+  font-weight: 535;
   font-size: 14px;
 `
 
 const StyledCloseButton = styled(StyledButton)`
-  background-color: ${({ theme }) => theme.backgroundInteractive};
-  color: ${({ theme }) => theme.textPrimary};
+  background-color: ${({ theme }) => theme.surface3};
+  color: ${({ theme }) => theme.neutral1};
 
   &:hover {
-    background-color: ${({ theme }) => theme.backgroundInteractive};
+    background-color: ${({ theme }) => theme.surface3};
     opacity: ${({ theme }) => theme.opacity.hover};
     transition: opacity 250ms ease;
   }
@@ -77,7 +84,7 @@ const Buttons = ({
   showCancel,
 }: {
   warning: Warning
-  onContinue: () => void
+  onContinue?: () => void
   onCancel: () => void
   onBlocked?: () => void
   showCancel?: boolean
@@ -85,7 +92,7 @@ const Buttons = ({
   return warning.canProceed ? (
     <>
       <StyledButton onClick={onContinue}>
-        <Trans>I understand</Trans>
+        {!displayWarningLabel(warning) ? <Trans>Continue</Trans> : <Trans>I understand</Trans>}
       </StyledButton>
       {showCancel && <StyledCancelButton onClick={onCancel}>Cancel</StyledCancelButton>}
     </>
@@ -116,8 +123,8 @@ const ExplorerContainer = styled.div`
   height: 32px;
   margin-top: 10px;
   font-size: 20px;
-  background-color: ${({ theme }) => theme.accentActionSoft};
-  color: ${({ theme }) => theme.accentAction};
+  background-color: ${({ theme }) => theme.accent2};
+  color: ${({ theme }) => theme.accent1};
   border-radius: 8px;
   padding: 2px 12px;
   display: flex;
@@ -183,9 +190,9 @@ function ExplorerView({ token }: { token: Token }) {
 }
 
 const StyledExternalLink = styled(ExternalLink)`
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.accent1};
   stroke: currentColor;
-  font-weight: 600;
+  font-weight: 535;
 `
 
 export interface TokenSafetyProps {
@@ -252,31 +259,45 @@ export default function TokenSafety({
     </StyledExternalLink>
   )
 
-  return (
-    displayWarning && (
-      <Wrapper>
-        <Container>
-          <AutoColumn>
-            <LogoContainer>{logos}</LogoContainer>
-          </AutoColumn>
+  return displayWarning ? (
+    <Wrapper data-testid="TokenSafetyWrapper">
+      <Container>
+        <AutoColumn>
+          <LogoContainer>{logos}</LogoContainer>
+        </AutoColumn>
+        {displayWarningLabel(displayWarning) && (
           <ShortColumn>
             <SafetyLabel warning={displayWarning} />
           </ShortColumn>
-          <ShortColumn>
-            <InfoText>
-              {heading} {description} {learnMoreUrl}
-            </InfoText>
-          </ShortColumn>
-          <LinkColumn>{urls}</LinkColumn>
-          <Buttons
-            warning={displayWarning}
-            onContinue={acknowledge}
-            onCancel={onCancel}
-            onBlocked={onBlocked}
-            showCancel={showCancel}
-          />
-        </Container>
-      </Wrapper>
-    )
+        )}
+        <ShortColumn>
+          <InfoText>
+            {heading} {description} {learnMoreUrl}
+          </InfoText>
+        </ShortColumn>
+        <LinkColumn>{urls}</LinkColumn>
+        <Buttons
+          warning={displayWarning}
+          onContinue={acknowledge}
+          onCancel={onCancel}
+          onBlocked={onBlocked}
+          showCancel={showCancel}
+        />
+      </Container>
+    </Wrapper>
+  ) : (
+    <Wrapper>
+      <Container>
+        <ShortColumn>
+          <SafetyLabel warning={NotFoundWarning} />
+        </ShortColumn>
+        <ShortColumn>
+          <InfoText>
+            {heading} {description} {learnMoreUrl}
+          </InfoText>
+        </ShortColumn>
+        <Buttons warning={NotFoundWarning} onCancel={onCancel} showCancel={true} />
+      </Container>
+    </Wrapper>
   )
 }

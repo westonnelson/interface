@@ -1,53 +1,45 @@
-import {
-  AllowanceData,
-  AllowanceProvider,
-  AllowanceTransfer,
-  MaxAllowanceTransferAmount,
-  PERMIT2_ADDRESS,
-  PermitSingle,
-} from '@uniswap/permit2-sdk'
-import { Token } from '@uniswap/sdk-core'
+import { AllowanceTransfer, MaxAllowanceTransferAmount, PERMIT2_ADDRESS, PermitSingle } from '@uniswap/permit2-sdk'
+import { CurrencyAmount, Token } from '@uniswap/sdk-core'
 import { useWeb3React } from '@web3-react/core'
-import useBlockNumber from 'lib/hooks/useBlockNumber'
-import ms from 'ms.macro'
+import PERMIT2_ABI from 'abis/permit2.json'
+import { Permit2 } from 'abis/types'
+import { useContract } from 'hooks/useContract'
+import { useSingleCallResult } from 'lib/hooks/multicall'
+import ms from 'ms'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { toReadableError, UserRejectedRequestError } from 'utils/errors'
+import { signTypedData } from 'utils/signing'
+import { didUserReject } from 'utils/swapErrorToUserReadableMessage'
 
-const PERMIT_EXPIRATION = ms`30d`
-const PERMIT_SIG_EXPIRATION = ms`30m`
+const PERMIT_EXPIRATION = ms(`30d`)
+const PERMIT_SIG_EXPIRATION = ms(`30m`)
 
 function toDeadline(expiration: number): number {
   return Math.floor((Date.now() + expiration) / 1000)
 }
 
-export function usePermitAllowance(token?: Token, spender?: string) {
-  const { account, provider } = useWeb3React()
-  const allowanceProvider = useMemo(() => provider && new AllowanceProvider(provider, PERMIT2_ADDRESS), [provider])
-  const [allowanceData, setAllowanceData] = useState<AllowanceData>()
+export function usePermitAllowance(token?: Token, owner?: string, spender?: string) {
+  const contract = useContract<Permit2>(PERMIT2_ADDRESS, PERMIT2_ABI)
+  const inputs = useMemo(() => [owner, token?.address, spender], [owner, spender, token?.address])
 
-  // If there is no allowanceData, recheck every block so a submitted allowance is immediately observed.
-  const blockNumber = useBlockNumber()
-  const shouldUpdate = allowanceData ? false : blockNumber
+  // If there is no allowance yet, re-check next observed block.
+  // This guarantees that the permitAllowance is synced upon submission and updated upon being synced.
+  const [blocksPerFetch, setBlocksPerFetch] = useState<1>()
+  const result = useSingleCallResult(contract, 'allowance', inputs, {
+    blocksPerFetch,
+  }).result as Awaited<ReturnType<Permit2['allowance']>> | undefined
 
-  useEffect(() => {
-    if (!account || !token || !spender) return
+  const rawAmount = result?.amount.toString() // convert to a string before using in a hook, to avoid spurious rerenders
+  const allowance = useMemo(
+    () => (token && rawAmount ? CurrencyAmount.fromRawAmount(token, rawAmount) : undefined),
+    [token, rawAmount]
+  )
+  useEffect(() => setBlocksPerFetch(allowance?.equalTo(0) ? 1 : undefined), [allowance])
 
-    allowanceProvider
-      ?.getAllowanceData(token.address, account, spender)
-      .then((data) => {
-        if (stale) return
-        setAllowanceData(data)
-      })
-      .catch((e) => {
-        console.warn(`Failed to fetch allowance data: ${e}`)
-      })
-
-    let stale = false
-    return () => {
-      stale = true
-    }
-  }, [account, allowanceProvider, shouldUpdate, spender, token])
-
-  return allowanceData
+  return useMemo(
+    () => ({ permitAllowance: allowance, expiration: result?.expiration, nonce: result?.nonce }),
+    [allowance, result?.expiration, result?.nonce]
+  )
 }
 
 interface Permit extends PermitSingle {
@@ -65,7 +57,6 @@ export function useUpdatePermitAllowance(
   onPermitSignature: (signature: PermitSignature) => void
 ) {
   const { account, chainId, provider } = useWeb3React()
-
   return useCallback(async () => {
     try {
       if (!chainId) throw new Error('missing chainId')
@@ -86,12 +77,15 @@ export function useUpdatePermitAllowance(
       }
 
       const { domain, types, values } = AllowanceTransfer.getPermitData(permit, PERMIT2_ADDRESS, chainId)
-      const signature = await provider.getSigner(account)._signTypedData(domain, types, values)
+      const signature = await signTypedData(provider.getSigner(account), domain, types, values)
       onPermitSignature?.({ ...permit, signature })
       return
     } catch (e: unknown) {
       const symbol = token?.symbol ?? 'Token'
-      throw new Error(`${symbol} permit failed: ${e instanceof Error ? e.message : e}`)
+      if (didUserReject(e)) {
+        throw new UserRejectedRequestError(`${symbol} permit allowance failed: User rejected signature`)
+      }
+      throw toReadableError(`${symbol} permit allowance failed:`, e)
     }
   }, [account, chainId, nonce, onPermitSignature, provider, spender, token])
 }

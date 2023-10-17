@@ -1,6 +1,5 @@
-import styled, { DefaultTheme } from 'styled-components/macro'
-
-type Gap = keyof DefaultTheme['grids']
+import styled from 'styled-components'
+import { Gap } from 'theme'
 
 export const Column = styled.div<{
   gap?: Gap
@@ -18,11 +17,13 @@ export const ColumnCenter = styled(Column)`
 export const AutoColumn = styled.div<{
   gap?: Gap | string
   justify?: 'stretch' | 'center' | 'start' | 'end' | 'flex-start' | 'flex-end' | 'space-between'
+  grow?: true
 }>`
   display: grid;
   grid-auto-rows: auto;
   grid-row-gap: ${({ gap, theme }) => (gap && theme.grids[gap as Gap]) || gap};
   justify-items: ${({ justify }) => justify && justify};
+  flex-grow: ${({ grow }) => grow && 1};
 `
 
 export default Column

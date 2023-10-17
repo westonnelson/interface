@@ -1,11 +1,13 @@
 import { createSlice } from '@reduxjs/toolkit'
-import { ConnectionType } from 'connection'
-import { SupportedLocale } from 'constants/locales'
+import { deletePersistedConnectionMeta, getPersistedConnectionMeta } from 'connection/meta'
 
+import { ConnectionType } from '../../connection/types'
+import { SupportedLocale } from '../../constants/locales'
 import { DEFAULT_DEADLINE_FROM_NOW } from '../../constants/misc'
-import { updateVersion } from '../global/actions'
-import { SerializedPair, SerializedToken } from './types'
+import { RouterPreference } from '../../state/routing/types'
+import { SerializedPair, SerializedToken, SlippageTolerance } from './types'
 
+const selectedWallet = getPersistedConnectionMeta()?.type
 const currentTimestamp = () => new Date().getTime()
 
 export interface UserState {
@@ -14,21 +16,19 @@ export interface UserState {
   // the timestamp of the last updateVersion action
   lastUpdateVersionTimestamp?: number
 
-  matchesDarkMode: boolean // whether the dark mode media query matches
-
-  userDarkMode: boolean | null // the user's choice for dark mode or light mode
   userLocale: SupportedLocale | null
 
-  userExpertMode: boolean
-
-  userClientSideRouter: boolean // whether routes should be calculated with the client side router only
+  // which router should be used to calculate trades
+  userRouterPreference: RouterPreference
 
   // hides closed (inactive) positions across the app
   userHideClosedPositions: boolean
 
   // user defined slippage tolerance in bips, used in all txns
-  userSlippageTolerance: number | 'auto'
-  userSlippageToleranceHasBeenMigratedToAuto: boolean // temporary flag for migration status
+  userSlippageTolerance: number | SlippageTolerance.Auto
+
+  // flag to indicate whether the user has been migrated from the old slippage tolerance values
+  userSlippageToleranceHasBeenMigratedToAuto: boolean
 
   // deadline set by user in minutes, used in all txns
   userDeadline: number
@@ -47,13 +47,15 @@ export interface UserState {
   }
 
   timestamp: number
-  URLWarningVisible: boolean
-  hideNFTPromoBanner: boolean // whether or not we should hide the nft explore promo banner
-
+  hideBaseWalletBanner: boolean
+  // legacy field indicating the user disabled UniswapX during the opt-in period, or dismissed the UniswapX opt-in modal.
+  disabledUniswapX?: boolean
+  // temporary field indicating the user disabled UniswapX during the transition to the opt-out model
+  optedOutOfUniswapX?: boolean
   // undefined means has not gone through A/B split yet
-  showSurveyPopup: boolean | undefined
+  showSurveyPopup?: boolean
 
-  hideNFTWelcomeModal: boolean
+  originCountry?: string
 }
 
 function pairKey(token0Address: string, token1Address: string) {
@@ -61,23 +63,19 @@ function pairKey(token0Address: string, token1Address: string) {
 }
 
 export const initialState: UserState = {
-  selectedWallet: undefined,
-  matchesDarkMode: false,
-  userDarkMode: null,
-  userExpertMode: false,
+  selectedWallet,
   userLocale: null,
-  userClientSideRouter: false,
+  userRouterPreference: RouterPreference.API,
   userHideClosedPositions: false,
-  userSlippageTolerance: 'auto',
+  userSlippageTolerance: SlippageTolerance.Auto,
   userSlippageToleranceHasBeenMigratedToAuto: true,
   userDeadline: DEFAULT_DEADLINE_FROM_NOW,
   tokens: {},
   pairs: {},
   timestamp: currentTimestamp(),
-  URLWarningVisible: true,
-  hideNFTPromoBanner: false,
+  hideBaseWalletBanner: false,
   showSurveyPopup: undefined,
-  hideNFTWelcomeModal: false,
+  originCountry: undefined,
 }
 
 const userSlice = createSlice({
@@ -85,23 +83,16 @@ const userSlice = createSlice({
   initialState,
   reducers: {
     updateSelectedWallet(state, { payload: { wallet } }) {
+      if (!wallet) {
+        deletePersistedConnectionMeta()
+      }
       state.selectedWallet = wallet
     },
-    updateUserDarkMode(state, action) {
-      state.userDarkMode = action.payload.userDarkMode
-      state.timestamp = currentTimestamp()
-    },
-    updateMatchesDarkMode(state, action) {
-      state.matchesDarkMode = action.payload.matchesDarkMode
-      state.timestamp = currentTimestamp()
-    },
-    updateUserExpertMode(state, action) {
-      state.userExpertMode = action.payload.userExpertMode
-      state.timestamp = currentTimestamp()
-    },
     updateUserLocale(state, action) {
-      state.userLocale = action.payload.userLocale
-      state.timestamp = currentTimestamp()
+      if (action.payload.userLocale !== state.userLocale) {
+        state.userLocale = action.payload.userLocale
+        state.timestamp = currentTimestamp()
+      }
     },
     updateUserSlippageTolerance(state, action) {
       state.userSlippageTolerance = action.payload.userSlippageTolerance
@@ -111,17 +102,20 @@ const userSlice = createSlice({
       state.userDeadline = action.payload.userDeadline
       state.timestamp = currentTimestamp()
     },
-    updateUserClientSideRouter(state, action) {
-      state.userClientSideRouter = action.payload.userClientSideRouter
+    updateUserRouterPreference(state, action) {
+      state.userRouterPreference = action.payload.userRouterPreference
     },
     updateHideClosedPositions(state, action) {
       state.userHideClosedPositions = action.payload.userHideClosedPositions
     },
-    updateHideNFTWelcomeModal(state, action) {
-      state.hideNFTWelcomeModal = action.payload.hideNFTWelcomeModal
+    updateHideBaseWalletBanner(state, action) {
+      state.hideBaseWalletBanner = action.payload.hideBaseWalletBanner
     },
-    updateShowNftPromoBanner(state, action) {
-      state.hideNFTPromoBanner = action.payload.hideNFTPromoBanner
+    updateDisabledUniswapX(state, action) {
+      state.disabledUniswapX = action.payload.disabledUniswapX
+    },
+    updateOptedOutOfUniswapX(state, action) {
+      state.optedOutOfUniswapX = action.payload.optedOutOfUniswapX
     },
     addSerializedToken(state, { payload: { serializedToken } }) {
       if (!state.tokens) {
@@ -142,57 +136,24 @@ const userSlice = createSlice({
       }
       state.timestamp = currentTimestamp()
     },
-  },
-  extraReducers: (builder) => {
-    builder.addCase(updateVersion, (state) => {
-      // slippage isnt being tracked in local storage, reset to default
-      // noinspection SuspiciousTypeOfGuard
-      if (
-        typeof state.userSlippageTolerance !== 'number' ||
-        !Number.isInteger(state.userSlippageTolerance) ||
-        state.userSlippageTolerance < 0 ||
-        state.userSlippageTolerance > 5000
-      ) {
-        state.userSlippageTolerance = 'auto'
-      } else {
-        if (
-          !state.userSlippageToleranceHasBeenMigratedToAuto &&
-          [10, 50, 100].indexOf(state.userSlippageTolerance) !== -1
-        ) {
-          state.userSlippageTolerance = 'auto'
-          state.userSlippageToleranceHasBeenMigratedToAuto = true
-        }
-      }
-
-      // deadline isnt being tracked in local storage, reset to default
-      // noinspection SuspiciousTypeOfGuard
-      if (
-        typeof state.userDeadline !== 'number' ||
-        !Number.isInteger(state.userDeadline) ||
-        state.userDeadline < 60 ||
-        state.userDeadline > 180 * 60
-      ) {
-        state.userDeadline = DEFAULT_DEADLINE_FROM_NOW
-      }
-
-      state.lastUpdateVersionTimestamp = currentTimestamp()
-    })
+    setOriginCountry(state, { payload: country }) {
+      state.originCountry = country
+    },
   },
 })
 
 export const {
-  updateSelectedWallet,
   addSerializedPair,
   addSerializedToken,
+  setOriginCountry,
+  updateSelectedWallet,
   updateHideClosedPositions,
-  updateMatchesDarkMode,
-  updateUserClientSideRouter,
-  updateHideNFTWelcomeModal,
-  updateUserDarkMode,
+  updateUserRouterPreference,
   updateUserDeadline,
-  updateUserExpertMode,
   updateUserLocale,
   updateUserSlippageTolerance,
-  updateShowNftPromoBanner,
+  updateHideBaseWalletBanner,
+  updateDisabledUniswapX,
+  updateOptedOutOfUniswapX,
 } = userSlice.actions
 export default userSlice.reducer

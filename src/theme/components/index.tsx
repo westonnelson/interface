@@ -9,19 +9,12 @@ import React, {
   ReactNode,
   useCallback,
   useImperativeHandle,
+  useRef,
   useState,
 } from 'react'
-import {
-  ArrowLeft,
-  CheckCircle,
-  Copy,
-  ExternalLink as ExternalLinkIconFeather,
-  Link as LinkIconFeather,
-  X,
-} from 'react-feather'
+import { AlertTriangle, ArrowLeft, CheckCircle, Copy, Icon, X } from 'react-feather'
 import { Link } from 'react-router-dom'
-import styled, { css, keyframes } from 'styled-components/macro'
-import { flexRowNoWrap } from 'theme/styles'
+import styled, { css, keyframes } from 'styled-components'
 import { Z_INDEX } from 'theme/zIndex'
 
 import { ReactComponent as TooltipTriangle } from '../../assets/svg/tooltip_triangle.svg'
@@ -29,23 +22,11 @@ import { anonymizeLink } from '../../utils/anonymizeLink'
 
 // TODO: Break this file into a components folder
 
-export const CloseIcon = styled(X)<{ onClick: () => void }>`
-  color: ${({ theme }) => theme.textSecondary};
-  cursor: pointer;
-`
+export { ThemedText } from './text'
 
-// for wrapper react feather icons
-export const IconWrapper = styled.div<{ stroke?: string; size?: string; marginRight?: string; marginLeft?: string }>`
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: ${({ size }) => size ?? '20px'};
-  height: ${({ size }) => size ?? '20px'};
-  margin-right: ${({ marginRight }) => marginRight ?? 0};
-  margin-left: ${({ marginLeft }) => marginLeft ?? 0};
-  & > * {
-    stroke: ${({ theme, stroke }) => stroke ?? theme.accentActive};
-  }
+export const CloseIcon = styled(X)<{ onClick: () => void }>`
+  color: ${({ theme }) => theme.neutral1};
+  cursor: pointer;
 `
 
 // A button that triggers some onClick result, but looks like a link.
@@ -55,7 +36,7 @@ export const LinkStyledButton = styled.button<{ disabled?: boolean }>`
   background: none;
 
   cursor: ${({ disabled }) => (disabled ? 'default' : 'pointer')};
-  color: ${({ theme, disabled }) => (disabled ? theme.textSecondary : theme.accentAction)};
+  color: ${({ theme, disabled }) => (disabled ? theme.neutral2 : theme.accent1)};
   font-weight: 500;
 
   :hover {
@@ -93,6 +74,12 @@ export const ButtonText = styled.button`
   }
 `
 
+export const EllipsisStyle = css`
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+`
+
 export const ClickableStyle = css`
   text-decoration: none;
   cursor: pointer;
@@ -106,9 +93,9 @@ export const ClickableStyle = css`
   }
 `
 
-export const LinkStyle = css`
-  color: ${({ theme }) => theme.accentAction};
-  stroke: ${({ theme }) => theme.accentAction};
+const LinkStyle = css`
+  color: ${({ theme }) => theme.accent1};
+  stroke: ${({ theme }) => theme.accent1};
   font-weight: 500;
 `
 
@@ -118,29 +105,17 @@ export const StyledInternalLink = styled(Link)`
   ${LinkStyle}
 `
 
-const LinkIconWrapper = styled.a`
-  align-items: center;
-  justify-content: center;
-  display: flex;
-`
-
 const IconStyle = css`
   height: 16px;
   width: 18px;
   margin-left: 10px;
 `
 
-const LinkIcon = styled(ExternalLinkIconFeather)`
-  ${IconStyle}
-  ${ClickableStyle}
-  ${LinkStyle}
-`
-
 const CopyIcon = styled(Copy)`
   ${IconStyle}
   ${ClickableStyle}
   ${LinkStyle}
-  stroke: ${({ theme }) => theme.accentAction};
+  stroke: ${({ theme }) => theme.accent1};
 `
 
 const rotateImg = keyframes`
@@ -166,15 +141,11 @@ function handleClickExternalLink(event: React.MouseEvent<HTMLAnchorElement>) {
 
   // don't prevent default, don't redirect if it's a new tab
   if (target === '_blank' || event.ctrlKey || event.metaKey) {
-    outboundLink({ label: anonymizedHref }, () => {
-      console.debug('Fired outbound link event', anonymizedHref)
-    })
+    outboundLink({ label: anonymizedHref })
   } else {
     event.preventDefault()
     // send a ReactGA event and then trigger a location change
-    outboundLink({ label: anonymizedHref }, () => {
-      window.location.href = anonymizedHref
-    })
+    outboundLink({ label: anonymizedHref })
   }
 }
 
@@ -182,6 +153,12 @@ const StyledLink = styled.a`
   ${ClickableStyle}
   ${LinkStyle}
 `
+
+export const StyledRouterLink = styled(Link)`
+  ${ClickableStyle}
+  ${LinkStyle}
+`
+
 /**
  * Outbound link that handles firing google analytics events
  */
@@ -192,19 +169,6 @@ export function ExternalLink({
   ...rest
 }: Omit<HTMLProps<HTMLAnchorElement>, 'as' | 'ref' | 'onClick'> & { href: string }) {
   return <StyledLink target={target} rel={rel} href={href} onClick={handleClickExternalLink} {...rest} />
-}
-
-export function ExternalLinkIcon({
-  target = '_blank',
-  href,
-  rel = 'noopener noreferrer',
-  ...rest
-}: Omit<HTMLProps<HTMLAnchorElement>, 'as' | 'ref' | 'onClick'> & { href: string }) {
-  return (
-    <LinkIconWrapper target={target} rel={rel} href={href} onClick={handleClickExternalLink} {...rest}>
-      <LinkIcon />
-    </LinkIconWrapper>
-  )
 }
 
 const TOOLTIP_WIDTH = 60
@@ -333,34 +297,33 @@ export function CopyContractAddress({ address }: { address: string }) {
   )
 }
 
-const CopyHelperContainer = styled(LinkStyledButton)<{ clicked: boolean }>`
-  ${({ clicked }) => !clicked && ClickableStyle};
-  color: ${({ color, theme }) => color || theme.accentAction};
-  padding: 0;
-  flex-shrink: 0;
+const CopyHelperContainer = styled.div<{ clicked: boolean; color?: string; gap: number }>`
+  ${ClickableStyle}
   display: flex;
-  text-decoration: none;
-  :hover,
-  :active,
-  :focus {
-    text-decoration: none;
-    color: ${({ color, theme }) => color || theme.accentAction};
-  }
-`
-
-const CopyHelperText = styled.span<{ fontSize: number }>`
-  ${flexRowNoWrap};
-  font-size: ${({ fontSize }) => fontSize + 'px'};
-  font-weight: 400;
+  flex-direction: row;
+  gap: ${({ gap }) => gap + 'px'};
   align-items: center;
+  color: ${({ color }) => color ?? 'inherit'};
 `
 
-const CopiedIcon = styled(CheckCircle)`
-  color: ${({ theme }) => theme.accentSuccess};
+const CopyHelperText = styled.div<{ fontSize?: number; offset: number }>`
+  ${EllipsisStyle}
+  ${({ fontSize }) => (fontSize ? 'font-size: ' + fontSize + 'px' : 'inherit')};
+  max-width: calc(100% - ${({ offset }) => offset + 'px'});
+`
+
+const StyledCheckCircle = styled(CheckCircle)`
+  color: ${({ theme }) => theme.success};
   stroke-width: 1.5px;
 `
+
+function isEllipsisActive(element: HTMLDivElement | null) {
+  return Boolean(element && element.offsetWidth < element.scrollWidth)
+}
+
 interface CopyHelperProps {
-  link?: boolean
+  InitialIcon?: Icon | null
+  CopiedIcon?: Icon
   toCopy: string
   color?: string
   fontSize?: number
@@ -375,14 +338,15 @@ export type CopyHelperRefType = { forceCopy: () => void }
 export const CopyHelper = forwardRef<CopyHelperRefType, CopyHelperProps>(
   (
     {
-      link,
+      InitialIcon = Copy,
+      CopiedIcon = StyledCheckCircle,
       toCopy,
       color,
-      fontSize = 16,
+      fontSize,
       iconSize = 20,
-      gap = 12,
+      gap = 4,
       iconPosition = 'left',
-      iconColor,
+      iconColor = 'currentColor',
       children,
     }: CopyHelperProps,
     ref
@@ -398,15 +362,35 @@ export const CopyHelper = forwardRef<CopyHelperRefType, CopyHelperProps>(
       },
     }))
 
-    const BaseIcon = isCopied ? CopiedIcon : link ? LinkIconFeather : Copy
+    // Detects is text is ellipsing in order to shorten gap caused by extra space browsers add after ... chars
+    const textRef = useRef<HTMLDivElement>(null)
+    const isEllipsis = isEllipsisActive(textRef.current)
+    const displayGap = isEllipsis ? gap - 4 : gap
 
+    const [isHover, setIsHover] = useState(false)
+    const onHover = useCallback(() => setIsHover(true), [])
+    const offHover = useCallback(() => setIsHover(false), [])
+
+    // Copy-helpers w/ left icon always show icon & display "Copied!" in copied state
+    // Copy-helpers w/ right icon show icon on hover & do not change text
+    const showIcon = Boolean(iconPosition === 'left' || isHover || isCopied)
+    const Icon = isCopied ? CopiedIcon : showIcon ? InitialIcon : null
+    const offset = showIcon ? gap + iconSize : 0
     return (
-      <CopyHelperContainer onClick={copy} color={color} clicked={isCopied}>
-        <div style={{ display: 'flex', flexDirection: 'row', gap }}>
-          {iconPosition === 'left' && <BaseIcon size={iconSize} strokeWidth={1.5} color={iconColor} />}
-          <CopyHelperText fontSize={fontSize}>{isCopied ? <Trans>Copied!</Trans> : children}</CopyHelperText>
-          {iconPosition === 'right' && <BaseIcon size={iconSize} strokeWidth={1.5} color={iconColor} />}
-        </div>
+      <CopyHelperContainer
+        onClick={copy}
+        color={color}
+        clicked={isCopied}
+        gap={displayGap}
+        onMouseEnter={onHover}
+        onMouseLeave={offHover}
+      >
+        {iconPosition === 'left' && Icon && <Icon size={iconSize} strokeWidth={1.5} color={iconColor} />}
+        <CopyHelperText ref={textRef} fontSize={fontSize} offset={offset}>
+          {isCopied && iconPosition === 'left' ? <Trans>Copied!</Trans> : children}
+        </CopyHelperText>
+        <div style={{ clear: 'both' }} />
+        {iconPosition === 'right' && Icon && <Icon size={iconSize} strokeWidth={1.5} color={iconColor} />}
       </CopyHelperContainer>
     )
   }
@@ -434,14 +418,15 @@ export const SpinnerSVG = styled.svg`
   ${SpinnerCss}
 `
 
-const BackArrowLink = styled(StyledInternalLink)`
-  color: ${({ theme }) => theme.textPrimary};
+const BackArrowIcon = styled(ArrowLeft)`
+  color: ${({ theme }) => theme.neutral1};
 `
-export function BackArrow({ to }: { to: string }) {
+
+export function BackArrowLink({ to }: { to: string }) {
   return (
-    <BackArrowLink to={to}>
-      <ArrowLeft />
-    </BackArrowLink>
+    <StyledInternalLink to={to}>
+      <BackArrowIcon />
+    </StyledInternalLink>
   )
 }
 
@@ -479,10 +464,17 @@ export const MediumOnly = styled.span`
 export const Separator = styled.div`
   width: 100%;
   height: 1px;
-  background-color: ${({ theme }) => theme.backgroundOutline};
+  background-color: ${({ theme }) => theme.surface3};
 `
 
-export const GlowEffect = styled.div`
-  border-radius: 32px;
-  box-shadow: ${({ theme }) => theme.networkDefaultShadow};
+export const CautionTriangle = styled(AlertTriangle)`
+  color: ${({ theme }) => theme.deprecated_accentWarning};
+`
+
+export const Divider = styled.div`
+  width: 100%;
+  height: 1px;
+  border-width: 0;
+  margin: 0;
+  background-color: ${({ theme }) => theme.surface3};
 `

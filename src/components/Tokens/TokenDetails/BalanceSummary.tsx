@@ -1,23 +1,22 @@
 import { Trans } from '@lingui/macro'
-import { formatCurrencyAmount, NumberType } from '@uniswap/conedison/format'
-import { Currency } from '@uniswap/sdk-core'
+import { ChainId, Currency } from '@uniswap/sdk-core'
 import { useWeb3React } from '@web3-react/core'
-import CurrencyLogo from 'components/Logo/CurrencyLogo'
+import { PortfolioLogo } from 'components/AccountDrawer/MiniPortfolio/PortfolioLogo'
+import { getChainInfo } from 'constants/chainInfo'
+import { asSupportedChain } from 'constants/chains'
 import { useStablecoinValue } from 'hooks/useStablecoinPrice'
 import useCurrencyBalance from 'lib/hooks/useCurrencyBalance'
-import styled from 'styled-components/macro'
+import { useMemo } from 'react'
+import styled, { useTheme } from 'styled-components'
+import { ThemedText } from 'theme/components'
+import { NumberType, useFormatter } from 'utils/formatNumbers'
 
 const BalancesCard = styled.div`
-  box-shadow: ${({ theme }) => theme.shallowShadow};
-  background-color: ${({ theme }) => theme.backgroundSurface};
-  border: ${({ theme }) => `1px solid ${theme.backgroundOutline}`};
   border-radius: 16px;
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
   display: none;
-  font-size: 12px;
   height: fit-content;
-  line-height: 16px;
-  padding: 20px;
+  padding: 16px;
   width: 100%;
 
   // 768 hardcoded to match NFT-redesign navbar breakpoints
@@ -35,9 +34,6 @@ const BalanceRow = styled.div`
   align-items: center;
   display: flex;
   flex-direction: row;
-  font-size: 20px;
-  justify-content: space-between;
-  line-height: 28px;
   margin-top: 12px;
 `
 const BalanceItem = styled.div`
@@ -45,23 +41,67 @@ const BalanceItem = styled.div`
   align-items: center;
 `
 
-export default function BalanceSummary({ token }: { token: Currency }) {
-  const { account } = useWeb3React()
-  const balance = useCurrencyBalance(account, token)
-  const formattedBalance = formatCurrencyAmount(balance, NumberType.TokenNonTx)
-  const formattedUsdValue = formatCurrencyAmount(useStablecoinValue(balance), NumberType.FiatTokenStats)
+const BalanceContainer = styled.div`
+  display: flex;
+  flex-direction: column;
+  margin-left: 8px;
+  flex: 1;
+`
 
-  if (!account || !balance) return null
+const BalanceAmountsContainer = styled.div`
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+`
+
+const StyledNetworkLabel = styled.div`
+  color: ${({ color }) => color};
+  font-size: 12px;
+  line-height: 16px;
+`
+
+export default function BalanceSummary({ token }: { token: Currency }) {
+  const { account, chainId } = useWeb3React()
+  const theme = useTheme()
+  const { label, color } = getChainInfo(asSupportedChain(chainId) ?? ChainId.MAINNET)
+  const balance = useCurrencyBalance(account, token)
+  const { formatCurrencyAmount } = useFormatter()
+  const formattedBalance = formatCurrencyAmount({
+    amount: balance,
+    type: NumberType.TokenNonTx,
+  })
+  const formattedUsdValue = formatCurrencyAmount({
+    amount: useStablecoinValue(balance),
+    type: NumberType.FiatTokenStats,
+  })
+
+  const currencies = useMemo(() => [token], [token])
+
+  if (!account || !balance) {
+    return null
+  }
   return (
     <BalancesCard>
       <BalanceSection>
-        <Trans>Your balance</Trans>
+        <ThemedText.SubHeaderSmall color={theme.neutral1}>
+          <Trans>Your balance on {label}</Trans>
+        </ThemedText.SubHeaderSmall>
         <BalanceRow>
-          <BalanceItem>
-            <CurrencyLogo currency={token} />
-            &nbsp;{formattedBalance} {token.symbol}
-          </BalanceItem>
-          <BalanceItem>{formattedUsdValue}</BalanceItem>
+          <PortfolioLogo currencies={currencies} chainId={token.chainId} size="2rem" />
+          <BalanceContainer>
+            <BalanceAmountsContainer>
+              <BalanceItem>
+                <ThemedText.SubHeader>
+                  {formattedBalance} {token.symbol}
+                </ThemedText.SubHeader>
+              </BalanceItem>
+              <BalanceItem>
+                <ThemedText.BodyPrimary>{formattedUsdValue}</ThemedText.BodyPrimary>
+              </BalanceItem>
+            </BalanceAmountsContainer>
+            <StyledNetworkLabel color={color}>{label}</StyledNetworkLabel>
+          </BalanceContainer>
         </BalanceRow>
       </BalanceSection>
     </BalancesCard>

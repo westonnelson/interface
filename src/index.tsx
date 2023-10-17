@@ -1,20 +1,22 @@
 import '@reach/dialog/styles.css'
 import 'inter-ui'
 import 'polyfills'
-import 'components/analytics'
+import 'tracing'
+import 'connection/eagerlyConnect'
 
-import * as Sentry from '@sentry/react'
+import { ApolloProvider } from '@apollo/client'
 import { FeatureFlagsProvider } from 'featureFlags'
-import RelayEnvironment from 'graphql/data/RelayEnvironment'
+import { apolloClient } from 'graphql/data/apollo'
 import { BlockNumberProvider } from 'lib/hooks/useBlockNumber'
 import { MulticallUpdater } from 'lib/state/multicall'
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import { Helmet } from 'react-helmet'
 import { QueryClient, QueryClientProvider } from 'react-query'
 import { Provider } from 'react-redux'
-import { RelayEnvironmentProvider } from 'react-relay'
-import { HashRouter } from 'react-router-dom'
-import { isProductionEnv } from 'utils/env'
+import { BrowserRouter, HashRouter, useLocation } from 'react-router-dom'
+import { SystemThemeUpdater, ThemeColorMetaUpdater } from 'theme/components/ThemeToggle'
+import { isBrowserRouterEnabled } from 'utils/env'
 
 import Web3Provider from './components/Web3Provider'
 import { LanguageProvider } from './i18n'
@@ -24,30 +26,30 @@ import store from './state'
 import ApplicationUpdater from './state/application/updater'
 import ListsUpdater from './state/lists/updater'
 import LogsUpdater from './state/logs/updater'
+import OrderUpdater from './state/signatures/updater'
 import TransactionUpdater from './state/transactions/updater'
-import UserUpdater from './state/user/updater'
 import ThemeProvider, { ThemedGlobalStyle } from './theme'
 import RadialGradientByChainUpdater from './theme/components/RadialGradientByChainUpdater'
 
-if (!!window.ethereum) {
+if (window.ethereum) {
   window.ethereum.autoRefreshOnNetworkChange = false
 }
 
-if (isProductionEnv()) {
-  Sentry.init({
-    dsn: process.env.REACT_APP_SENTRY_DSN,
-    release: process.env.REACT_APP_GIT_COMMIT_HASH,
-  })
-}
-
 function Updaters() {
+  const location = useLocation()
+  const baseUrl = `${window.location.origin}${location.pathname}`
   return (
     <>
+      <Helmet>
+        <link rel="canonical" href={baseUrl} />
+      </Helmet>
       <RadialGradientByChainUpdater />
       <ListsUpdater />
-      <UserUpdater />
+      <SystemThemeUpdater />
+      <ThemeColorMetaUpdater />
       <ApplicationUpdater />
       <TransactionUpdater />
+      <OrderUpdater />
       <MulticallUpdater />
       <LogsUpdater />
     </>
@@ -58,15 +60,17 @@ const queryClient = new QueryClient()
 
 const container = document.getElementById('root') as HTMLElement
 
+const Router = isBrowserRouterEnabled() ? BrowserRouter : HashRouter
+
 createRoot(container).render(
   <StrictMode>
     <Provider store={store}>
       <FeatureFlagsProvider>
         <QueryClientProvider client={queryClient}>
-          <HashRouter>
+          <Router>
             <LanguageProvider>
               <Web3Provider>
-                <RelayEnvironmentProvider environment={RelayEnvironment}>
+                <ApolloProvider client={apolloClient}>
                   <BlockNumberProvider>
                     <Updaters />
                     <ThemeProvider>
@@ -74,10 +78,10 @@ createRoot(container).render(
                       <App />
                     </ThemeProvider>
                   </BlockNumberProvider>
-                </RelayEnvironmentProvider>
+                </ApolloProvider>
               </Web3Provider>
             </LanguageProvider>
-          </HashRouter>
+          </Router>
         </QueryClientProvider>
       </FeatureFlagsProvider>
     </Provider>

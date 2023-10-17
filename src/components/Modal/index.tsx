@@ -2,14 +2,16 @@ import { DialogContent, DialogOverlay } from '@reach/dialog'
 import React from 'react'
 import { animated, useSpring, useTransition } from 'react-spring'
 import { useGesture } from 'react-use-gesture'
-import styled, { css } from 'styled-components/macro'
+import styled, { css } from 'styled-components'
 import { Z_INDEX } from 'theme/zIndex'
 
 import { isMobile } from '../../utils/userAgent'
 
+export const MODAL_TRANSITION_DURATION = 200
+
 const AnimatedDialogOverlay = animated(DialogOverlay)
 
-const StyledDialogOverlay = styled(AnimatedDialogOverlay)<{ scrollOverlay?: boolean }>`
+const StyledDialogOverlay = styled(AnimatedDialogOverlay)<{ $scrollOverlay?: boolean }>`
   &[data-reach-dialog-overlay] {
     z-index: ${Z_INDEX.modalBackdrop};
     background-color: transparent;
@@ -17,17 +19,19 @@ const StyledDialogOverlay = styled(AnimatedDialogOverlay)<{ scrollOverlay?: bool
 
     display: flex;
     align-items: center;
-    overflow-y: ${({ scrollOverlay }) => scrollOverlay && 'scroll'};
+    @media screen and (max-width: ${({ theme }) => theme.breakpoint.sm}px) {
+      align-items: flex-end;
+    }
+    overflow-y: ${({ $scrollOverlay }) => $scrollOverlay && 'scroll'};
     justify-content: center;
 
-    background-color: ${({ theme }) => theme.backgroundScrim};
+    background-color: ${({ theme }) => theme.scrim};
   }
 `
 
 type StyledDialogProps = {
   $minHeight?: number | false
   $maxHeight?: number
-  $isBottomSheet?: boolean
   $scrollOverlay?: boolean
   $hideBorder?: boolean
   $maxWidth: number
@@ -39,15 +43,13 @@ const StyledDialogContent = styled(AnimatedDialogContent)<StyledDialogProps>`
 
   &[data-reach-dialog-content] {
     margin: auto;
-    background-color: ${({ theme }) => theme.backgroundSurface};
-    border: ${({ theme, $hideBorder }) => !$hideBorder && `1px solid ${theme.deprecated_bg1}`};
-    box-shadow: ${({ theme }) => theme.deepShadow};
+    background-color: ${({ theme }) => theme.surface2};
+    border: ${({ theme, $hideBorder }) => !$hideBorder && `1px solid ${theme.surface3}`};
+    box-shadow: ${({ theme }) => theme.deprecated_deepShadow};
     padding: 0px;
     width: 50vw;
     overflow-y: auto;
     overflow-x: hidden;
-
-    align-self: ${({ $isBottomSheet }) => $isBottomSheet && 'flex-end'};
     max-width: ${({ $maxWidth }) => $maxWidth}px;
     ${({ $maxHeight }) =>
       $maxHeight &&
@@ -61,22 +63,17 @@ const StyledDialogContent = styled(AnimatedDialogContent)<StyledDialogProps>`
       `}
     display: ${({ $scrollOverlay }) => ($scrollOverlay ? 'inline-table' : 'flex')};
     border-radius: 20px;
-    ${({ theme }) => theme.deprecated_mediaWidth.deprecated_upToMedium`
+
+    @media screen and (max-width: ${({ theme }) => theme.breakpoint.md}px) {
       width: 65vw;
-      margin: auto;
-    `}
-    ${({ theme, $isBottomSheet }) => theme.deprecated_mediaWidth.deprecated_upToSmall`
-      width:  85vw;
-      ${
-        $isBottomSheet &&
-        css`
-          width: 100vw;
-          border-radius: 20px;
-          border-bottom-left-radius: 0;
-          border-bottom-right-radius: 0;
-        `
-      }
-    `}
+    }
+    @media screen and (max-width: ${({ theme }) => theme.breakpoint.sm}px) {
+      margin: 0;
+      width: 100vw;
+      border-radius: 20px;
+      border-bottom-left-radius: 0;
+      border-bottom-right-radius: 0;
+    }
   }
 `
 
@@ -84,14 +81,14 @@ interface ModalProps {
   isOpen: boolean
   onDismiss?: () => void
   onSwipe?: () => void
+  height?: number // takes precedence over minHeight and maxHeight
   minHeight?: number | false
   maxHeight?: number
   maxWidth?: number
   initialFocusRef?: React.RefObject<any>
   children?: React.ReactNode
-  scrollOverlay?: boolean
+  $scrollOverlay?: boolean
   hideBorder?: boolean
-  isBottomSheet?: boolean
 }
 
 export default function Modal({
@@ -100,15 +97,15 @@ export default function Modal({
   minHeight = false,
   maxHeight = 90,
   maxWidth = 420,
+  height,
   initialFocusRef,
   children,
   onSwipe = onDismiss,
-  scrollOverlay,
-  isBottomSheet = isMobile,
+  $scrollOverlay,
   hideBorder = false,
 }: ModalProps) {
   const fadeTransition = useTransition(isOpen, {
-    config: { duration: 200 },
+    config: { duration: MODAL_TRANSITION_DURATION },
     from: { opacity: 0 },
     enter: { opacity: 1 },
     leave: { opacity: 0 },
@@ -136,7 +133,7 @@ export default function Modal({
               onDismiss={onDismiss}
               initialFocusRef={initialFocusRef}
               unstable_lockFocusAcrossFrames={false}
-              scrollOverlay={scrollOverlay}
+              $scrollOverlay={$scrollOverlay}
             >
               <StyledDialogContent
                 {...(isMobile
@@ -146,10 +143,9 @@ export default function Modal({
                     }
                   : {})}
                 aria-label="dialog"
-                $minHeight={minHeight}
-                $maxHeight={maxHeight}
-                $isBottomSheet={isBottomSheet}
-                $scrollOverlay={scrollOverlay}
+                $minHeight={height ?? minHeight}
+                $maxHeight={height ?? maxHeight}
+                $scrollOverlay={$scrollOverlay}
                 $hideBorder={hideBorder}
                 $maxWidth={maxWidth}
               >

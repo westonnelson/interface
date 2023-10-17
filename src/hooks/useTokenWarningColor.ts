@@ -1,21 +1,27 @@
 import { WARNING_LEVEL } from 'constants/tokenSafety'
-import { useEffect, useState } from 'react'
-import { useTheme } from 'styled-components/macro'
+import { useTheme } from 'styled-components'
 
-export const useTokenWarningColor = (level: WARNING_LEVEL) => {
-  const [color, setColor] = useState('')
+export const useTokenWarningTextColor = (level: WARNING_LEVEL) => {
   const theme = useTheme()
 
-  useEffect(() => {
-    switch (level) {
-      case WARNING_LEVEL.MEDIUM:
-        return setColor(theme.accentWarning)
-      case WARNING_LEVEL.UNKNOWN:
-        return setColor(theme.accentFailure)
-      case WARNING_LEVEL.BLOCKED:
-        return setColor(theme.textSecondary)
-    }
-  }, [level, theme])
+  switch (level) {
+    case WARNING_LEVEL.MEDIUM:
+      return theme.deprecated_accentWarning
+    case WARNING_LEVEL.UNKNOWN:
+      return theme.critical
+    case WARNING_LEVEL.BLOCKED:
+      return theme.neutral2
+  }
+}
 
-  return color
+export const useTokenWarningColor = (level: WARNING_LEVEL) => {
+  const theme = useTheme()
+
+  switch (level) {
+    case WARNING_LEVEL.MEDIUM:
+    case WARNING_LEVEL.BLOCKED:
+      return theme.surface3
+    case WARNING_LEVEL.UNKNOWN:
+      return theme.deprecated_accentFailureSoft
+  }
 }

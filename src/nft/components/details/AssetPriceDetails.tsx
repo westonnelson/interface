@@ -1,28 +1,24 @@
-import { useTrace } from '@uniswap/analytics'
-import { sendAnalyticsEvent } from '@uniswap/analytics'
-import { EventName } from '@uniswap/analytics-events'
+import { NFTEventName } from '@uniswap/analytics-events'
 import { useWeb3React } from '@web3-react/core'
+import { sendAnalyticsEvent, useTrace } from 'analytics'
 import { OpacityHoverState } from 'components/Common'
-import { useNftBalanceQuery } from 'graphql/data/nft/NftBalance'
+import { Share } from 'components/Icons/Share'
+import { useNftBalance } from 'graphql/data/nft/NftBalance'
 import { CancelListingIcon, VerifiedIcon } from 'nft/components/icons'
-import { useBag, useProfilePageState, useSellAsset } from 'nft/hooks'
+import { useBag, useNativeUsdPrice, useProfilePageState, useSellAsset, useUsdPriceofNftAsset } from 'nft/hooks'
 import { CollectionInfoForAsset, GenieAsset, ProfilePageStateType, WalletAsset } from 'nft/types'
 import {
   ethNumberStandardFormatter,
-  fetchPrice,
   formatEthPrice,
   generateTweetForAsset,
   getMarketplaceIcon,
   timeLeft,
-  useUsdPrice,
 } from 'nft/utils'
-import { shortenAddress } from 'nft/utils/address'
 import { useMemo } from 'react'
-import { Upload } from 'react-feather'
-import { useQuery } from 'react-query'
 import { Link, useNavigate } from 'react-router-dom'
-import styled, { css, useTheme } from 'styled-components/macro'
-import { ExternalLink, ThemedText } from 'theme'
+import styled, { css, useTheme } from 'styled-components'
+import { ExternalLink, ThemedText } from 'theme/components'
+import { shortenAddress } from 'utils/addresses'
 
 const TWITTER_WIDTH = 560
 const TWITTER_HEIGHT = 480
@@ -41,7 +37,7 @@ const hoverState = css`
     left: 0;
     width: 100%;
     height: 100%;
-    background: ${({ theme }) => theme.stateOverlayHover};
+    background: ${({ theme }) => theme.deprecated_stateOverlayHover};
     z-index: 0;
   }
 
@@ -53,7 +49,7 @@ const hoverState = css`
     left: 0;
     width: 100%;
     height: 100%;
-    background: ${({ theme }) => theme.stateOverlayPressed};
+    background: ${({ theme }) => theme.deprecated_stateOverlayPressed};
     z-index: 0;
   }
 `
@@ -76,8 +72,8 @@ const BestPriceContainer = styled.div`
   flex-direction: column;
   gap: 8px;
   padding: 12px;
-  background-color: ${({ theme }) => theme.backgroundSurface};
-  border: 1px solid ${({ theme }) => theme.backgroundOutline};
+  background-color: ${({ theme }) => theme.surface1};
+  border: 1px solid ${({ theme }) => theme.surface3};
   border-radius: 16px;
 `
 
@@ -92,19 +88,15 @@ const PriceRow = styled.div`
   align-items: flex-end;
 `
 
-const MarketplaceIcon = styled.img`
-  width: 20px;
-  height: 20px;
-  border-radius: 4px;
-  margin-top: auto;
-  margin-bottom: auto;
-`
-
-const BuyNowButton = styled.div<{ assetInBag: boolean; margin: boolean; useAccentColor: boolean }>`
+const BuyNowButton = styled.div<{
+  assetInBag: boolean
+  margin: boolean
+  useAccentColor: boolean
+}>`
   position: relative;
   width: 100%;
   background-color: ${({ theme, assetInBag, useAccentColor }) =>
-    assetInBag ? theme.accentFailure : useAccentColor ? theme.accentAction : theme.backgroundInteractive};
+    assetInBag ? theme.critical : useAccentColor ? theme.accent1 : theme.surface3};
   border-radius: 12px;
   padding: 10px 12px;
   margin-top: ${({ margin }) => (margin ? '12px' : '0px')};
@@ -119,11 +111,11 @@ const BuyNowButtonContainer = styled.div`
 `
 
 const Tertiary = styled(ThemedText.BodySecondary)`
-  color: ${({ theme }) => theme.textTertiary};
+  color: ${({ theme }) => theme.neutral3};
 `
 
 const UploadLink = styled.a`
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   cursor: pointer;
 
   ${OpacityHoverState}
@@ -148,16 +140,16 @@ const DiscoveryContainer = styled.div`
 
 const OwnerText = styled.a`
   font-size: 16px;
-  font-weight: 600;
+  font-weight: 535;
   line-height: 20px;
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   text-decoration: none;
 
   ${OpacityHoverState}
 `
 
 const OwnerInformationContainer = styled.div`
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -174,13 +166,13 @@ const AssetHeader = styled.div`
   display: -webkit-box;
   align-items: center;
   font-size: 28px;
-  font-weight: 500;
+  font-weight: 535;
   line-height: 36px;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
 `
 
 const CollectionNameContainer = styled.div`
@@ -190,9 +182,9 @@ const CollectionNameContainer = styled.div`
 
 const CollectionHeader = styled.span`
   font-size: 16px;
-  font-weight: 400;
+  font-weight: 485;
   line-height: 24px;
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
   text-decoration: none;
   ${OpacityHoverState};
 `
@@ -210,19 +202,24 @@ const DefaultLink = styled(Link)`
   text-decoration: none;
 `
 
+const MarketplaceIcon = styled(ExternalLink)`
+  display: flex;
+  align-items: center;
+`
+
 const OwnerContainer = ({ asset }: { asset: WalletAsset }) => {
   const navigate = useNavigate()
-  const { data: USDValue } = useQuery(['fetchPrice', {}], () => fetchPrice(), {})
+  const ethUsdPrice = useNativeUsdPrice()
   const setSellPageState = useProfilePageState((state) => state.setProfilePageState)
   const selectSellAsset = useSellAsset((state) => state.selectSellAsset)
   const resetSellAssets = useSellAsset((state) => state.reset)
 
   const listing = asset.sellOrders && asset.sellOrders.length > 0 ? asset.sellOrders[0] : undefined
-  const expirationDate = listing ? new Date(listing.endAt) : undefined
+  const expirationDate = listing?.endAt ? new Date(listing.endAt) : undefined
 
   const USDPrice = useMemo(
-    () => (USDValue ? USDValue * asset.floor_sell_order_price : undefined),
-    [USDValue, asset.floor_sell_order_price]
+    () => (ethUsdPrice && asset.floor_sell_order_price ? ethUsdPrice * asset.floor_sell_order_price : undefined),
+    [ethUsdPrice, asset.floor_sell_order_price]
   )
   const trace = useTrace()
 
@@ -230,7 +227,7 @@ const OwnerContainer = ({ asset }: { asset: WalletAsset }) => {
     resetSellAssets()
     navigate('/nfts/profile')
     selectSellAsset(asset)
-    sendAnalyticsEvent(EventName.NFT_SELL_ITEM_ADDED, {
+    sendAnalyticsEvent(NFTEventName.NFT_SELL_ITEM_ADDED, {
       collection_address: asset.asset_contract.address,
       token_id: asset.tokenId,
       ...trace,
@@ -241,20 +238,18 @@ const OwnerContainer = ({ asset }: { asset: WalletAsset }) => {
   return (
     <BestPriceContainer>
       <HeaderRow>
-        <ThemedText.SubHeader color="accentAction" fontWeight={500} lineHeight="24px">
-          {listing ? 'Your Price' : 'List for Sale'}
-        </ThemedText.SubHeader>
+        <ThemedText.SubHeader color="accent1">{listing ? 'Your Price' : 'List for Sale'}</ThemedText.SubHeader>
         {listing && (
-          <ExternalLink href={listing.marketplaceUrl}>
-            <MarketplaceIcon alt={listing.marketplace} src={getMarketplaceIcon(listing.marketplace)} />
-          </ExternalLink>
+          <MarketplaceIcon href={listing.marketplaceUrl}>
+            {getMarketplaceIcon(listing.marketplace, '20')}
+          </MarketplaceIcon>
         )}
       </HeaderRow>
       <PriceRow>
         {listing ? (
           <>
             <ThemedText.MediumHeader fontSize="28px" lineHeight="36px">
-              {formatEthPrice(asset.priceInfo.ETHPrice)} ETH
+              {formatEthPrice(asset.priceInfo?.ETHPrice)} ETH
             </ThemedText.MediumHeader>
             {USDPrice && (
               <ThemedText.BodySecondary lineHeight="24px">
@@ -299,10 +294,8 @@ const NotForSale = ({ collectionName, collectionUrl }: { collectionName: string;
   return (
     <BestPriceContainer>
       <NotForSaleContainer>
-        <CancelListingIcon width="79px" height="79px" color={theme.textTertiary} />
-        <ThemedText.SubHeader fontWeight={500} lineHeight="24px">
-          Not for sale
-        </ThemedText.SubHeader>
+        <CancelListingIcon width="79px" height="79px" color={theme.neutral3} />
+        <ThemedText.SubHeader>Not for sale</ThemedText.SubHeader>
         <DiscoveryContainer>
           <ThemedText.BodySecondary fontSize="14px" lineHeight="20px">
             Discover similar NFTs for sale in
@@ -320,7 +313,7 @@ export const AssetPriceDetails = ({ asset, collection }: AssetPriceDetailsProps)
   const { account } = useWeb3React()
 
   const cheapestOrder = asset.sellorders && asset.sellorders.length > 0 ? asset.sellorders[0] : undefined
-  const expirationDate = cheapestOrder ? new Date(cheapestOrder.endAt) : undefined
+  const expirationDate = cheapestOrder?.endAt ? new Date(cheapestOrder.endAt) : undefined
 
   const itemsInBag = useBag((s) => s.itemsInBag)
   const addAssetsToBag = useBag((s) => s.addAssetsToBag)
@@ -328,14 +321,11 @@ export const AssetPriceDetails = ({ asset, collection }: AssetPriceDetailsProps)
   const toggleBag = useBag((s) => s.toggleBag)
   const bagExpanded = useBag((s) => s.bagExpanded)
 
-  const USDPrice = useUsdPrice(asset)
+  const USDPrice = useUsdPriceofNftAsset(asset)
 
   const assetsFilter = [{ address: asset.address, tokenId: asset.tokenId }]
-  const { walletAssets: ownerAssets } = useNftBalanceQuery(account ?? '', [], assetsFilter, 1)
-  const walletAsset: WalletAsset | undefined = useMemo(
-    () => (ownerAssets?.length > 0 ? ownerAssets[0] : undefined),
-    [ownerAssets]
-  )
+  const { walletAssets: ownerAssets } = useNftBalance(account ?? '', [], assetsFilter, 1)
+  const walletAsset: WalletAsset | undefined = useMemo(() => ownerAssets?.[0], [ownerAssets])
 
   const { assetInBag } = useMemo(() => {
     return {
@@ -355,7 +345,7 @@ export const AssetPriceDetails = ({ asset, collection }: AssetPriceDetailsProps)
     )
   }
 
-  const isOwner = asset.owner && !!walletAsset && account?.toLowerCase() === asset.owner?.address?.toLowerCase()
+  const isOwner = asset.ownerAddress && !!walletAsset && account?.toLowerCase() === asset.ownerAddress?.toLowerCase()
   const isForSale = cheapestOrder && asset.priceInfo
 
   return (
@@ -369,7 +359,7 @@ export const AssetPriceDetails = ({ asset, collection }: AssetPriceDetailsProps)
             </CollectionHeader>
           </DefaultLink>
           <UploadLink onClick={shareTweet} target="_blank">
-            <Upload size={20} strokeWidth={2} />
+            <Share />
           </UploadLink>
         </CollectionNameContainer>
         <AssetHeader>{asset.name ?? `${asset.collectionName} #${asset.tokenId}`}</AssetHeader>
@@ -379,12 +369,10 @@ export const AssetPriceDetails = ({ asset, collection }: AssetPriceDetailsProps)
       ) : isForSale ? (
         <BestPriceContainer>
           <HeaderRow>
-            <ThemedText.SubHeader color="accentAction" fontWeight={500} lineHeight="24px">
-              Best Price
-            </ThemedText.SubHeader>
-            <ExternalLink href={cheapestOrder.marketplaceUrl}>
-              <MarketplaceIcon alt={cheapestOrder.marketplace} src={getMarketplaceIcon(cheapestOrder.marketplace)} />
-            </ExternalLink>
+            <ThemedText.SubHeader color="accent1">Best Price</ThemedText.SubHeader>
+            <MarketplaceIcon href={cheapestOrder.marketplaceUrl}>
+              {getMarketplaceIcon(cheapestOrder.marketplace, '20')}
+            </MarketplaceIcon>
           </HeaderRow>
           <PriceRow>
             <ThemedText.MediumHeader fontSize="28px" lineHeight="36px">
@@ -424,20 +412,20 @@ export const AssetPriceDetails = ({ asset, collection }: AssetPriceDetailsProps)
       )}
       {isForSale && (
         <OwnerInformationContainer>
-          {asset.tokenType !== 'ERC1155' && asset.owner.address && (
-            <ThemedText.BodySmall color="textSecondary" lineHeight="20px">
+          {asset.tokenType !== 'ERC1155' && asset.ownerAddress && (
+            <ThemedText.BodySmall color="neutral2" lineHeight="20px">
               Seller:
             </ThemedText.BodySmall>
           )}
           <OwnerText
             target="_blank"
-            href={`https://etherscan.io/address/${asset.owner.address}`}
+            href={`https://etherscan.io/address/${asset.ownerAddress}`}
             rel="noopener noreferrer"
           >
             {asset.tokenType === 'ERC1155' ? (
               ''
             ) : (
-              <span> {isOwner ? 'You' : asset.owner.address && shortenAddress(asset.owner.address, 2, 4)}</span>
+              <span> {isOwner ? 'You' : asset.ownerAddress && shortenAddress(asset.ownerAddress, 2)}</span>
             )}
           </OwnerText>
         </OwnerInformationContainer>

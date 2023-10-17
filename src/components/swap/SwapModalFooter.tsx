@@ -1,165 +1,224 @@
 import { Trans } from '@lingui/macro'
-import { TraceEvent } from '@uniswap/analytics'
-import { BrowserEvent, ElementName, EventName } from '@uniswap/analytics-events'
-import { Currency, CurrencyAmount, Percent, Token, TradeType } from '@uniswap/sdk-core'
+import { BrowserEvent, InterfaceElementName, SwapEventName } from '@uniswap/analytics-events'
+import { Percent } from '@uniswap/sdk-core'
+import { TraceEvent } from 'analytics'
+import AnimatedDropdown from 'components/AnimatedDropdown'
+import Column from 'components/Column'
+import SpinningLoader from 'components/Loader/SpinningLoader'
+import { SwapResult } from 'hooks/useSwapCallback'
 import useTransactionDeadline from 'hooks/useTransactionDeadline'
-import {
-  formatPercentInBasisPointsNumber,
-  formatPercentNumber,
-  formatToDecimal,
-  getDurationFromDateMilliseconds,
-  getDurationUntilTimestampSeconds,
-  getTokenAddress,
-} from 'lib/utils/analytics'
-import { ReactNode } from 'react'
-import { Text } from 'rebass'
-import { InterfaceTrade } from 'state/routing/types'
-import { useClientSideRouter, useUserSlippageTolerance } from 'state/user/hooks'
-import { computeRealizedPriceImpact } from 'utils/prices'
+import ms from 'ms'
+import { ReactNode, useState } from 'react'
+import { AlertTriangle } from 'react-feather'
+import { easings, useSpring } from 'react-spring'
+import { InterfaceTrade, RouterPreference } from 'state/routing/types'
+import { isClassicTrade } from 'state/routing/utils'
+import { useRouterPreference, useUserSlippageTolerance } from 'state/user/hooks'
+import styled, { useTheme } from 'styled-components'
+import { Separator, ThemedText } from 'theme/components'
+import getRoutingDiagramEntries from 'utils/getRoutingDiagramEntries'
+import { formatSwapButtonClickEventProperties } from 'utils/loggingFormatters'
 
-import { ButtonError } from '../Button'
-import { AutoRow } from '../Row'
-import { SwapCallbackError } from './styleds'
-import { getTokenPath, RoutingDiagramEntry } from './SwapRoute'
+import { ReactComponent as ExpandoIconClosed } from '../../assets/svg/expando-icon-closed.svg'
+import { ReactComponent as ExpandoIconOpened } from '../../assets/svg/expando-icon-opened.svg'
+import { ButtonError, SmallButtonPrimary } from '../Button'
+import Row, { AutoRow, RowBetween, RowFixed } from '../Row'
+import { SwapCallbackError, SwapShowAcceptChanges } from './styled'
+import { SwapLineItemProps, SwapLineItemType } from './SwapLineItem'
+import SwapLineItem from './SwapLineItem'
 
-interface AnalyticsEventProps {
-  trade: InterfaceTrade<Currency, Currency, TradeType>
-  hash: string | undefined
-  allowedSlippage: Percent
-  transactionDeadlineSecondsSinceEpoch: number | undefined
-  isAutoSlippage: boolean
-  isAutoRouterApi: boolean
-  swapQuoteReceivedDate: Date | undefined
-  routes: RoutingDiagramEntry[]
-  fiatValueInput?: CurrencyAmount<Token> | null
-  fiatValueOutput?: CurrencyAmount<Token> | null
+const DetailsContainer = styled(Column)`
+  padding-bottom: 8px;
+`
+
+const StyledAlertTriangle = styled(AlertTriangle)`
+  margin-right: 8px;
+  min-width: 24px;
+`
+
+const ConfirmButton = styled(ButtonError)`
+  height: 56px;
+`
+
+const DropdownControllerWrapper = styled.div`
+  display: flex;
+  align-items: center;
+  margin-right: -6px;
+
+  padding: 0 16px;
+  min-width: fit-content;
+  white-space: nowrap;
+`
+
+const DropdownButton = styled.button`
+  padding: 0;
+  margin-top: 16px;
+  height: 28px;
+  text-decoration: none;
+  display: flex;
+  background: none;
+  border: none;
+  align-items: center;
+  cursor: pointer;
+`
+
+function DropdownController({ open, onClick }: { open: boolean; onClick: () => void }) {
+  return (
+    <DropdownButton onClick={onClick}>
+      <Separator />
+      <DropdownControllerWrapper>
+        <ThemedText.BodySmall color="neutral2">
+          {open ? <Trans>Show less</Trans> : <Trans>Show more</Trans>}
+        </ThemedText.BodySmall>
+        {open ? <ExpandoIconOpened /> : <ExpandoIconClosed />}
+      </DropdownControllerWrapper>
+      <Separator />
+    </DropdownButton>
+  )
 }
-
-const formatRoutesEventProperties = (routes: RoutingDiagramEntry[]) => {
-  const routesEventProperties: Record<string, any[]> = {
-    routes_percentages: [],
-    routes_protocols: [],
-  }
-
-  routes.forEach((route, index) => {
-    routesEventProperties['routes_percentages'].push(formatPercentNumber(route.percent))
-    routesEventProperties['routes_protocols'].push(route.protocol)
-    routesEventProperties[`route_${index}_input_currency_symbols`] = route.path.map(
-      (pathStep) => pathStep[0].symbol ?? ''
-    )
-    routesEventProperties[`route_${index}_output_currency_symbols`] = route.path.map(
-      (pathStep) => pathStep[1].symbol ?? ''
-    )
-    routesEventProperties[`route_${index}_input_currency_addresses`] = route.path.map((pathStep) =>
-      getTokenAddress(pathStep[0])
-    )
-    routesEventProperties[`route_${index}_output_currency_addresses`] = route.path.map((pathStep) =>
-      getTokenAddress(pathStep[1])
-    )
-    routesEventProperties[`route_${index}_fee_amounts_hundredths_of_bps`] = route.path.map((pathStep) => pathStep[2])
-  })
-
-  return routesEventProperties
-}
-
-const formatAnalyticsEventProperties = ({
-  trade,
-  hash,
-  allowedSlippage,
-  transactionDeadlineSecondsSinceEpoch,
-  isAutoSlippage,
-  isAutoRouterApi,
-  swapQuoteReceivedDate,
-  routes,
-  fiatValueInput,
-  fiatValueOutput,
-}: AnalyticsEventProps) => ({
-  estimated_network_fee_usd: trade.gasUseEstimateUSD ? formatToDecimal(trade.gasUseEstimateUSD, 2) : undefined,
-  transaction_hash: hash,
-  transaction_deadline_seconds: getDurationUntilTimestampSeconds(transactionDeadlineSecondsSinceEpoch),
-  token_in_address: getTokenAddress(trade.inputAmount.currency),
-  token_out_address: getTokenAddress(trade.outputAmount.currency),
-  token_in_symbol: trade.inputAmount.currency.symbol,
-  token_out_symbol: trade.outputAmount.currency.symbol,
-  token_in_amount: formatToDecimal(trade.inputAmount, trade.inputAmount.currency.decimals),
-  token_out_amount: formatToDecimal(trade.outputAmount, trade.outputAmount.currency.decimals),
-  token_in_amount_usd: fiatValueInput ? parseFloat(fiatValueInput.toFixed(2)) : undefined,
-  token_out_amount_usd: fiatValueOutput ? parseFloat(fiatValueOutput.toFixed(2)) : undefined,
-  price_impact_basis_points: formatPercentInBasisPointsNumber(computeRealizedPriceImpact(trade)),
-  allowed_slippage_basis_points: formatPercentInBasisPointsNumber(allowedSlippage),
-  is_auto_router_api: isAutoRouterApi,
-  is_auto_slippage: isAutoSlippage,
-  chain_id:
-    trade.inputAmount.currency.chainId === trade.outputAmount.currency.chainId
-      ? trade.inputAmount.currency.chainId
-      : undefined,
-  duration_from_first_quote_to_swap_submission_milliseconds: swapQuoteReceivedDate
-    ? getDurationFromDateMilliseconds(swapQuoteReceivedDate)
-    : undefined,
-  swap_quote_block_number: trade.blockNumber,
-  ...formatRoutesEventProperties(routes),
-})
 
 export default function SwapModalFooter({
   trade,
   allowedSlippage,
-  hash,
+  swapResult,
   onConfirm,
   swapErrorMessage,
   disabledConfirm,
-  swapQuoteReceivedDate,
   fiatValueInput,
   fiatValueOutput,
+  showAcceptChanges,
+  onAcceptChanges,
+  isLoading,
 }: {
-  trade: InterfaceTrade<Currency, Currency, TradeType>
-  hash: string | undefined
+  trade: InterfaceTrade
+  swapResult?: SwapResult
   allowedSlippage: Percent
   onConfirm: () => void
-  swapErrorMessage: ReactNode | undefined
+  swapErrorMessage?: ReactNode
   disabledConfirm: boolean
-  swapQuoteReceivedDate: Date | undefined
-  fiatValueInput?: CurrencyAmount<Token> | null
-  fiatValueOutput?: CurrencyAmount<Token> | null
+  fiatValueInput: { data?: number; isLoading: boolean }
+  fiatValueOutput: { data?: number; isLoading: boolean }
+  showAcceptChanges: boolean
+  onAcceptChanges: () => void
+  isLoading: boolean
 }) {
   const transactionDeadlineSecondsSinceEpoch = useTransactionDeadline()?.toNumber() // in seconds since epoch
   const isAutoSlippage = useUserSlippageTolerance()[0] === 'auto'
-  const [clientSideRouter] = useClientSideRouter()
-  const routes = getTokenPath(trade)
+  const [routerPreference] = useRouterPreference()
+  const routes = isClassicTrade(trade) ? getRoutingDiagramEntries(trade) : undefined
+  const theme = useTheme()
+  const [showMore, setShowMore] = useState(false)
+
+  const lineItemProps = { trade, allowedSlippage, syncing: false }
 
   return (
     <>
-      <AutoRow>
-        <TraceEvent
-          events={[BrowserEvent.onClick]}
-          element={ElementName.CONFIRM_SWAP_BUTTON}
-          name={EventName.SWAP_SUBMITTED_BUTTON_CLICKED}
-          properties={formatAnalyticsEventProperties({
-            trade,
-            hash,
-            allowedSlippage,
-            transactionDeadlineSecondsSinceEpoch,
-            isAutoSlippage,
-            isAutoRouterApi: !clientSideRouter,
-            swapQuoteReceivedDate,
-            routes,
-            fiatValueInput,
-            fiatValueOutput,
-          })}
-        >
-          <ButtonError
-            onClick={onConfirm}
-            disabled={disabledConfirm}
-            style={{ margin: '10px 0 0 0' }}
-            id={ElementName.CONFIRM_SWAP_BUTTON}
+      <DropdownController open={showMore} onClick={() => setShowMore(!showMore)} />
+      <DetailsContainer gap="md">
+        <SwapLineItem {...lineItemProps} type={SwapLineItemType.EXCHANGE_RATE} />
+        <ExpandableLineItems {...lineItemProps} open={showMore} />
+        <SwapLineItem {...lineItemProps} type={SwapLineItemType.INPUT_TOKEN_FEE_ON_TRANSFER} />
+        <SwapLineItem {...lineItemProps} type={SwapLineItemType.OUTPUT_TOKEN_FEE_ON_TRANSFER} />
+        <SwapLineItem {...lineItemProps} type={SwapLineItemType.SWAP_FEE} />
+        <SwapLineItem {...lineItemProps} type={SwapLineItemType.NETWORK_COST} />
+      </DetailsContainer>
+      {showAcceptChanges ? (
+        <SwapShowAcceptChanges data-testid="show-accept-changes">
+          <RowBetween>
+            <RowFixed>
+              <StyledAlertTriangle size={20} />
+              <ThemedText.DeprecatedMain color={theme.accent1}>
+                <Trans>Price updated</Trans>
+              </ThemedText.DeprecatedMain>
+            </RowFixed>
+            <SmallButtonPrimary onClick={onAcceptChanges}>
+              <Trans>Accept</Trans>
+            </SmallButtonPrimary>
+          </RowBetween>
+        </SwapShowAcceptChanges>
+      ) : (
+        <AutoRow>
+          <TraceEvent
+            events={[BrowserEvent.onClick]}
+            element={InterfaceElementName.CONFIRM_SWAP_BUTTON}
+            name={SwapEventName.SWAP_SUBMITTED_BUTTON_CLICKED}
+            properties={formatSwapButtonClickEventProperties({
+              trade,
+              swapResult,
+              allowedSlippage,
+              transactionDeadlineSecondsSinceEpoch,
+              isAutoSlippage,
+              isAutoRouterApi: routerPreference === RouterPreference.API,
+              routes,
+              fiatValueInput: fiatValueInput.data,
+              fiatValueOutput: fiatValueOutput.data,
+            })}
           >
-            <Text fontSize={20} fontWeight={500}>
-              <Trans>Confirm Swap</Trans>
-            </Text>
-          </ButtonError>
-        </TraceEvent>
+            <ConfirmButton
+              data-testid="confirm-swap-button"
+              onClick={onConfirm}
+              disabled={disabledConfirm}
+              $borderRadius="12px"
+              id={InterfaceElementName.CONFIRM_SWAP_BUTTON}
+            >
+              {isLoading ? (
+                <ThemedText.HeadlineSmall color="neutral2">
+                  <Row>
+                    <SpinningLoader />
+                    <Trans>Finalizing quote...</Trans>
+                  </Row>
+                </ThemedText.HeadlineSmall>
+              ) : (
+                <ThemedText.HeadlineSmall color="deprecated_accentTextLightPrimary">
+                  <Trans>Confirm swap</Trans>
+                </ThemedText.HeadlineSmall>
+              )}
+            </ConfirmButton>
+          </TraceEvent>
 
-        {swapErrorMessage ? <SwapCallbackError error={swapErrorMessage} /> : null}
-      </AutoRow>
+          {swapErrorMessage ? <SwapCallbackError error={swapErrorMessage} /> : null}
+        </AutoRow>
+      )}
     </>
+  )
+}
+
+function AnimatedLineItem(props: SwapLineItemProps & { open: boolean; delay: number }) {
+  const { open, delay } = props
+
+  const animatedProps = useSpring({
+    animatedOpacity: open ? 1 : 0,
+    config: { duration: ms('300ms'), easing: easings.easeOutSine },
+    delay,
+  })
+
+  return <SwapLineItem {...props} {...animatedProps} />
+}
+
+function ExpandableLineItems(props: { trade: InterfaceTrade; allowedSlippage: Percent; open: boolean }) {
+  const { open, trade, allowedSlippage } = props
+
+  if (!trade) return null
+
+  const lineItemProps = { trade, allowedSlippage, syncing: false, open }
+
+  return (
+    <AnimatedDropdown
+      open={open}
+      springProps={{
+        marginTop: open ? 0 : -12,
+        config: {
+          duration: ms('200ms'),
+          easing: easings.easeOutSine,
+        },
+      }}
+    >
+      <Column gap="md">
+        <AnimatedLineItem {...lineItemProps} type={SwapLineItemType.PRICE_IMPACT} delay={ms('50ms')} />
+        <AnimatedLineItem {...lineItemProps} type={SwapLineItemType.MAX_SLIPPAGE} delay={ms('100ms')} />
+        <AnimatedLineItem {...lineItemProps} type={SwapLineItemType.MINIMUM_OUTPUT} delay={ms('120ms')} />
+        <AnimatedLineItem {...lineItemProps} type={SwapLineItemType.MAXIMUM_INPUT} delay={ms('120ms')} />
+      </Column>
+    </AnimatedDropdown>
   )
 }

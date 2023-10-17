@@ -1,20 +1,24 @@
 import { Trans } from '@lingui/macro'
-import { sendAnalyticsEvent } from '@uniswap/analytics'
-import { EventName } from '@uniswap/analytics-events'
-import { formatNumber, formatUSDPrice, NumberType } from '@uniswap/conedison/format'
+import { InterfaceEventName } from '@uniswap/analytics-events'
 import { ParentSize } from '@visx/responsive'
+import { sendAnalyticsEvent } from 'analytics'
 import SparklineChart from 'components/Charts/SparklineChart'
+import { ArrowChangeDown } from 'components/Icons/ArrowChangeDown'
+import { ArrowChangeUp } from 'components/Icons/ArrowChangeUp'
+import { Info } from 'components/Icons/Info'
 import QueryTokenLogo from 'components/Logo/QueryTokenLogo'
-import { getChainInfo } from 'constants/chainInfo'
+import { MouseoverTooltip } from 'components/Tooltip'
+import { useInfoExplorePageEnabled } from 'featureFlags/flags/infoExplore'
 import { SparklineMap, TopToken } from 'graphql/data/TopTokens'
-import { CHAIN_NAME_TO_CHAIN_ID, getTokenDetailsURL } from 'graphql/data/util'
+import { getTokenDetailsURL, supportedChainIdFromGQLChain, validateUrlChainParam } from 'graphql/data/util'
 import { useAtomValue } from 'jotai/utils'
 import { ForwardedRef, forwardRef } from 'react'
 import { CSSProperties, ReactNode } from 'react'
-import { ArrowDown, ArrowUp } from 'react-feather'
 import { Link, useParams } from 'react-router-dom'
-import styled, { css, useTheme } from 'styled-components/macro'
-import { ClickableStyle } from 'theme'
+import styled, { css, useTheme } from 'styled-components'
+import { BREAKPOINTS } from 'theme'
+import { ClickableStyle } from 'theme/components'
+import { NumberType, useFormatter } from 'utils/formatNumbers'
 
 import {
   LARGE_MEDIA_BREAKPOINT,
@@ -31,8 +35,7 @@ import {
   TokenSortMethod,
   useSetSortMethod,
 } from '../state'
-import InfoTip from '../TokenDetails/InfoTip'
-import { ArrowCell, DeltaText, formatDelta, getDeltaArrow } from '../TokenDetails/PriceChart'
+import { DeltaArrow, DeltaText } from '../TokenDetails/Delta'
 
 const Cell = styled.div`
   display: flex;
@@ -42,7 +45,7 @@ const Cell = styled.div`
 const StyledTokenRow = styled.div<{
   first?: boolean
   last?: boolean
-  loading?: boolean
+  $loading?: boolean
 }>`
   background-color: transparent;
   display: grid;
@@ -67,10 +70,10 @@ const StyledTokenRow = styled.div<{
   transition-duration: ${({ theme }) => theme.transition.duration.fast};
 
   &:hover {
-    ${({ loading, theme }) =>
-      !loading &&
+    ${({ $loading, theme }) =>
+      !$loading &&
       css`
-        background-color: ${theme.hoverDefault};
+        background-color: ${theme.deprecated_hoverDefault};
       `}
     ${({ last }) =>
       last &&
@@ -94,7 +97,7 @@ const StyledTokenRow = styled.div<{
   @media only screen and (max-width: ${SMALL_MEDIA_BREAKPOINT}) {
     grid-template-columns: 2fr 3fr;
     min-width: unset;
-    border-bottom: 0.5px solid ${({ theme }) => theme.backgroundModule};
+    border-bottom: 0.5px solid ${({ theme }) => theme.surface2};
 
     :last-of-type {
       border-bottom: none;
@@ -102,22 +105,23 @@ const StyledTokenRow = styled.div<{
   }
 `
 
-const ClickableContent = styled.div`
+const ClickableContent = styled.div<{ gap?: number }>`
   display: flex;
+  ${({ gap }) => gap && `gap: ${gap}px`};
   text-decoration: none;
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
   align-items: center;
   cursor: pointer;
 `
 const ClickableName = styled(ClickableContent)`
-  gap: 8px;
+  gap: 12px;
   max-width: 100%;
 `
 const StyledHeaderRow = styled(StyledTokenRow)`
   border-bottom: 1px solid;
-  border-color: ${({ theme }) => theme.backgroundOutline};
+  border-color: ${({ theme }) => theme.surface3};
   border-radius: 8px 8px 0px 0px;
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   font-size: 14px;
   height: 48px;
   line-height: 16px;
@@ -135,7 +139,7 @@ const StyledHeaderRow = styled(StyledTokenRow)`
 `
 
 const ListNumberCell = styled(Cell)<{ header: boolean }>`
-  color: ${({ theme }) => theme.textSecondary};
+  color: ${({ theme }) => theme.neutral2};
   min-width: 32px;
   font-size: 14px;
 
@@ -164,6 +168,10 @@ const NameCell = styled(Cell)`
   padding: 0px 8px;
   min-width: 240px;
   gap: 8px;
+
+  @media only screen and (max-width: ${BREAKPOINTS.xs}px) {
+    min-width: 200px;
+  }
 `
 const PriceCell = styled(DataCell)`
   padding-right: 8px;
@@ -179,8 +187,9 @@ const PercentChangeInfoCell = styled(Cell)`
 
   @media only screen and (max-width: ${SMALL_MEDIA_BREAKPOINT}) {
     display: flex;
+    gap: 3px;
     justify-content: flex-end;
-    color: ${({ theme }) => theme.textSecondary};
+    color: ${({ theme }) => theme.neutral2};
     font-size: 12px;
     line-height: 16px;
   }
@@ -200,7 +209,6 @@ const HeaderCellWrapper = styled.span<{ onClick?: () => void }>`
   cursor: ${({ onClick }) => (onClick ? 'pointer' : 'unset')};
   display: flex;
   gap: 4px;
-  height: 100%;
   justify-content: flex-end;
   width: 100%;
 
@@ -237,7 +245,7 @@ const TokenInfoCell = styled(Cell)`
     flex-direction: column;
     gap: 0px;
     width: max-content;
-    font-weight: 500;
+    font-weight: 535;
   }
 `
 const TokenName = styled.div`
@@ -247,7 +255,7 @@ const TokenName = styled.div`
   max-width: 100%;
 `
 const TokenSymbol = styled(Cell)`
-  color: ${({ theme }) => theme.textTertiary};
+  color: ${({ theme }) => theme.neutral2};
   text-transform: uppercase;
 
   @media only screen and (max-width: ${SMALL_MEDIA_BREAKPOINT}) {
@@ -280,28 +288,21 @@ export const SparkLineLoadingBubble = styled(LongLoadingBubble)`
   height: 4px;
 `
 
-export const L2NetworkLogo = styled.div<{ networkUrl?: string; size?: string }>`
-  height: ${({ size }) => size ?? '12px'};
-  width: ${({ size }) => size ?? '12px'};
-  position: absolute;
-  left: 50%;
-  bottom: 0;
-  background: url(${({ networkUrl }) => networkUrl});
-  background-repeat: no-repeat;
-  background-size: ${({ size }) => (size ? `${size} ${size}` : '12px 12px')};
-  display: ${({ networkUrl }) => !networkUrl && 'none'};
-`
-export const LogoContainer = styled.div`
-  position: relative;
-  align-items: center;
+const InfoIconContainer = styled.div`
+  width: 16px;
+  margin-left: 2px;
   display: flex;
+  align-items: center;
+  cursor: help;
 `
 
 export const HEADER_DESCRIPTIONS: Record<TokenSortMethod, ReactNode | undefined> = {
   [TokenSortMethod.PRICE]: undefined,
   [TokenSortMethod.PERCENT_CHANGE]: undefined,
   [TokenSortMethod.TOTAL_VALUE_LOCKED]: (
-    <Trans>Total value locked (TVL) is the amount of the asset that’s currently in a Uniswap v3 liquidity pool.</Trans>
+    <Trans>
+      Total value locked (TVL) is the aggregate amount of the asset available across all Uniswap v3 liquidity pools.
+    </Trans>
   ),
   [TokenSortMethod.VOLUME]: (
     <Trans>Volume is the amount of the asset that has been traded on Uniswap v3 during the selected time frame.</Trans>
@@ -326,14 +327,20 @@ function HeaderCell({
       {sortMethod === category && (
         <>
           {sortAscending ? (
-            <ArrowUp size={20} strokeWidth={1.8} color={theme.accentActive} />
+            <ArrowChangeUp width={16} height={16} color={theme.neutral2} />
           ) : (
-            <ArrowDown size={20} strokeWidth={1.8} color={theme.accentActive} />
+            <ArrowChangeDown width={16} height={16} color={theme.neutral2} />
           )}
         </>
       )}
       {category}
-      {description && <InfoTip text={description}></InfoTip>}
+      {description && (
+        <MouseoverTooltip text={description} placement="right">
+          <InfoIconContainer>
+            <Info width="16px" height="16px" />
+          </InfoIconContainer>
+        </MouseoverTooltip>
+      )}
     </HeaderCellWrapper>
   )
 }
@@ -353,7 +360,7 @@ function TokenRow({
   first?: boolean
   header: boolean
   listNumber: ReactNode
-  loading?: boolean
+  $loading?: boolean
   tvl: ReactNode
   price: ReactNode
   percentChange: ReactNode
@@ -366,15 +373,23 @@ function TokenRow({
   const rowCells = (
     <>
       <ListNumberCell header={header}>{listNumber}</ListNumberCell>
-      <NameCell>{tokenInfo}</NameCell>
-      <PriceCell sortable={header}>{price}</PriceCell>
-      <PercentChangeCell sortable={header}>{percentChange}</PercentChangeCell>
-      <TvlCell sortable={header}>{tvl}</TvlCell>
-      <VolumeCell sortable={header}>{volume}</VolumeCell>
+      <NameCell data-testid="name-cell">{tokenInfo}</NameCell>
+      <PriceCell data-testid="price-cell" sortable={header}>
+        {price}
+      </PriceCell>
+      <PercentChangeCell data-testid="percent-change-cell" sortable={header}>
+        {percentChange}
+      </PercentChangeCell>
+      <TvlCell data-testid="tvl-cell" sortable={header}>
+        {tvl}
+      </TvlCell>
+      <VolumeCell data-testid="volume-cell" sortable={header}>
+        {volume}
+      </VolumeCell>
       <SparkLineCell>{sparkLine}</SparkLineCell>
     </>
   )
-  if (header) return <StyledHeaderRow>{rowCells}</StyledHeaderRow>
+  if (header) return <StyledHeaderRow data-testid="header-row">{rowCells}</StyledHeaderRow>
   return <StyledTokenRow {...rest}>{rowCells}</StyledTokenRow>
 }
 
@@ -400,7 +415,7 @@ export function LoadingRow(props: { first?: boolean; last?: boolean }) {
     <TokenRow
       header={false}
       listNumber={<SmallLoadingBubble />}
-      loading
+      $loading
       tokenInfo={
         <>
           <IconLoadingBubble />
@@ -422,85 +437,91 @@ interface LoadedRowProps {
   tokenListLength: number
   token: NonNullable<TopToken>
   sparklineMap: SparklineMap
+  sortRank: number
 }
 
 /* Loaded State: row component with token information */
 export const LoadedRow = forwardRef((props: LoadedRowProps, ref: ForwardedRef<HTMLDivElement>) => {
-  const { tokenListIndex, tokenListLength, token } = props
-  const tokenAddress = token.address
-  const tokenName = token.name
-  const tokenSymbol = token.symbol
-  const filterString = useAtomValue(filterStringAtom)
-  const sortAscending = useAtomValue(sortAscendingAtom)
+  const { formatFiatPrice, formatNumber, formatPercent } = useFormatter()
 
-  const lowercaseChainName = useParams<{ chainName?: string }>().chainName?.toUpperCase() ?? 'ethereum'
-  const filterNetwork = lowercaseChainName.toUpperCase()
-  const chainId = CHAIN_NAME_TO_CHAIN_ID[filterNetwork]
-  const L2Icon = getChainInfo(chainId)?.circleLogoUrl
+  const { tokenListIndex, tokenListLength, token, sortRank } = props
+  const filterString = useAtomValue(filterStringAtom)
+
+  const filterNetwork = validateUrlChainParam(useParams<{ chainName?: string }>().chainName?.toUpperCase())
+  const chainId = supportedChainIdFromGQLChain(filterNetwork)
   const timePeriod = useAtomValue(filterTimeAtom)
   const delta = token.market?.pricePercentChange?.value
-  const arrow = getDeltaArrow(delta)
-  const smallArrow = getDeltaArrow(delta, 14)
-  const formattedDelta = formatDelta(delta)
-  const rank = sortAscending ? tokenListLength - tokenListIndex : tokenListIndex + 1
+  const formattedDelta = formatPercent(delta)
 
   const exploreTokenSelectedEventProperties = {
     chain_id: chainId,
-    token_address: tokenAddress,
-    token_symbol: tokenSymbol,
+    token_address: token.address,
+    token_symbol: token.symbol,
     token_list_index: tokenListIndex,
-    token_list_rank: rank,
+    token_list_rank: sortRank,
     token_list_length: tokenListLength,
     time_frame: timePeriod,
     search_token_address_input: filterString,
   }
 
+  // A simple 0 price indicates the price is not currently available from the api
+  const price = token.market?.price?.value === 0 ? '-' : formatFiatPrice({ price: token.market?.price?.value })
+
+  const isInfoExplorePageEnabled = useInfoExplorePageEnabled()
+
   // TODO: currency logo sizing mobile (32px) vs. desktop (24px)
   return (
-    <div ref={ref}>
+    <div ref={ref} data-testid={`token-table-row-${token.address}`}>
       <StyledLink
-        to={getTokenDetailsURL(token.address, token.chain)}
-        onClick={() => sendAnalyticsEvent(EventName.EXPLORE_TOKEN_ROW_CLICKED, exploreTokenSelectedEventProperties)}
+        to={getTokenDetailsURL({ ...token, isInfoExplorePageEnabled })}
+        onClick={() =>
+          sendAnalyticsEvent(InterfaceEventName.EXPLORE_TOKEN_ROW_CLICKED, exploreTokenSelectedEventProperties)
+        }
       >
         <TokenRow
           header={false}
-          listNumber={rank}
+          listNumber={sortRank}
           tokenInfo={
             <ClickableName>
-              <LogoContainer>
-                <QueryTokenLogo token={token} />
-                <L2NetworkLogo networkUrl={L2Icon} />
-              </LogoContainer>
+              <QueryTokenLogo token={token} size="32px" />
               <TokenInfoCell>
-                <TokenName>{tokenName}</TokenName>
-                <TokenSymbol>{tokenSymbol}</TokenSymbol>
+                <TokenName data-cy="token-name">{token.name}</TokenName>
+                <TokenSymbol>{token.symbol}</TokenSymbol>
               </TokenInfoCell>
             </ClickableName>
           }
           price={
             <ClickableContent>
               <PriceInfoCell>
-                {formatUSDPrice(token.market?.price?.value)}
+                {price}
                 <PercentChangeInfoCell>
-                  <ArrowCell>{smallArrow}</ArrowCell>
+                  <DeltaArrow delta={delta} size={14} />
                   <DeltaText delta={delta}>{formattedDelta}</DeltaText>
                 </PercentChangeInfoCell>
               </PriceInfoCell>
             </ClickableContent>
           }
           percentChange={
-            <ClickableContent>
-              <ArrowCell>{arrow}</ArrowCell>
+            <ClickableContent gap={3}>
+              <DeltaArrow delta={delta} />
               <DeltaText delta={delta}>{formattedDelta}</DeltaText>
             </ClickableContent>
           }
           tvl={
             <ClickableContent>
-              {formatNumber(token.market?.totalValueLocked?.value, NumberType.FiatTokenStats)}
+              {formatNumber({
+                input: token.market?.totalValueLocked?.value,
+                type: NumberType.FiatTokenStats,
+              })}
             </ClickableContent>
           }
           volume={
-            <ClickableContent>{formatNumber(token.market?.volume?.value, NumberType.FiatTokenStats)}</ClickableContent>
+            <ClickableContent>
+              {formatNumber({
+                input: token.market?.volume?.value,
+                type: NumberType.FiatTokenStats,
+              })}
+            </ClickableContent>
           }
           sparkLine={
             <SparkLine>
@@ -512,7 +533,6 @@ export const LoadedRow = forwardRef((props: LoadedRowProps, ref: ForwardedRef<HT
                       height={height}
                       tokenData={token}
                       pricePercentChange={token.market?.pricePercentChange?.value}
-                      timePeriod={timePeriod}
                       sparklineMap={props.sparklineMap}
                     />
                   )

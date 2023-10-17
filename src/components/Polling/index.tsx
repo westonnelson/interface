@@ -3,15 +3,14 @@ import { useWeb3React } from '@web3-react/core'
 import { RowFixed } from 'components/Row'
 import { getChainInfo } from 'constants/chainInfo'
 import useCurrentBlockTimestamp from 'hooks/useCurrentBlockTimestamp'
-import useGasPrice from 'hooks/useGasPrice'
+import { useIsLandingPage } from 'hooks/useIsLandingPage'
 import { useIsNftPage } from 'hooks/useIsNftPage'
 import useMachineTimeMs from 'hooks/useMachineTime'
-import JSBI from 'jsbi'
 import useBlockNumber from 'lib/hooks/useBlockNumber'
-import ms from 'ms.macro'
+import ms from 'ms'
 import { useEffect, useMemo, useState } from 'react'
-import styled, { keyframes } from 'styled-components/macro'
-import { ExternalLink, ThemedText } from 'theme'
+import styled, { keyframes } from 'styled-components'
+import { ExternalLink, ThemedText } from 'theme/components'
 import { ExplorerDataType, getExplorerLink } from 'utils/getExplorerLink'
 
 import { MouseoverTooltip } from '../Tooltip'
@@ -20,7 +19,7 @@ import { ChainConnectivityWarning } from './ChainConnectivityWarning'
 const StyledPolling = styled.div`
   align-items: center;
   bottom: 0;
-  color: ${({ theme }) => theme.textTertiary};
+  color: ${({ theme }) => theme.neutral3};
   display: none;
   padding: 1rem;
   position: fixed;
@@ -44,7 +43,7 @@ const StyledPollingBlockNumber = styled(ThemedText.DeprecatedSmall)<{
   hovering: boolean
   warning: boolean
 }>`
-  color: ${({ theme, warning }) => (warning ? theme.deprecated_yellow3 : theme.accentSuccess)};
+  color: ${({ theme, warning }) => (warning ? theme.deprecated_yellow3 : theme.success)};
   transition: opacity 0.25s ease;
   opacity: ${({ breathe, hovering }) => (hovering ? 0.7 : breathe ? 1 : 0.5)};
   :hover {
@@ -66,19 +65,8 @@ const StyledPollingDot = styled.div<{ warning: boolean }>`
   min-width: 8px;
   border-radius: 50%;
   position: relative;
-  background-color: ${({ theme, warning }) => (warning ? theme.deprecated_yellow3 : theme.accentSuccess)};
+  background-color: ${({ theme, warning }) => (warning ? theme.deprecated_yellow3 : theme.success)};
   transition: 250ms ease background-color;
-`
-
-const StyledGasDot = styled.div`
-  background-color: ${({ theme }) => theme.textTertiary};
-  border-radius: 50%;
-  height: 4px;
-  min-height: 4px;
-  min-width: 4px;
-  position: relative;
-  transition: 250ms ease background-color;
-  width: 4px;
 `
 
 const rotate360 = keyframes`
@@ -97,7 +85,7 @@ const Spinner = styled.div<{ warning: boolean }>`
   border-top: 1px solid transparent;
   border-right: 1px solid transparent;
   border-bottom: 1px solid transparent;
-  border-left: 2px solid ${({ theme, warning }) => (warning ? theme.deprecated_yellow3 : theme.accentSuccess)};
+  border-left: 2px solid ${({ theme, warning }) => (warning ? theme.deprecated_yellow3 : theme.success)};
   background: transparent;
   width: 14px;
   height: 14px;
@@ -109,8 +97,8 @@ const Spinner = styled.div<{ warning: boolean }>`
   top: -3px;
 `
 
-const DEFAULT_MS_BEFORE_WARNING = ms`10m`
-const NETWORK_HEALTH_CHECK_MS = ms`10s`
+const DEFAULT_MS_BEFORE_WARNING = ms(`10m`)
+const NETWORK_HEALTH_CHECK_MS = ms(`10s`)
 
 export default function Polling() {
   const { chainId } = useWeb3React()
@@ -120,9 +108,7 @@ export default function Polling() {
   const machineTime = useMachineTimeMs(NETWORK_HEALTH_CHECK_MS)
   const blockTime = useCurrentBlockTimestamp()
   const isNftPage = useIsNftPage()
-
-  const ethGasPrice = useGasPrice()
-  const priceGwei = ethGasPrice ? JSBI.divide(ethGasPrice, JSBI.BigInt(1000000000)) : undefined
+  const isLandingPage = useIsLandingPage()
 
   const waitMsBeforeWarning =
     (chainId ? getChainInfo(chainId)?.blockWaitMsBeforeWarning : DEFAULT_MS_BEFORE_WARNING) ?? DEFAULT_MS_BEFORE_WARNING
@@ -154,32 +140,13 @@ export default function Polling() {
     return getExplorerLink(chainId, blockNumber.toString(), ExplorerDataType.BLOCK)
   }, [blockNumber, chainId])
 
-  if (isNftPage) {
+  if (isNftPage || isLandingPage) {
     return null
   }
 
   return (
     <RowFixed>
       <StyledPolling onMouseEnter={() => setIsHover(true)} onMouseLeave={() => setIsHover(false)}>
-        <ExternalLink href="https://etherscan.io/gastracker">
-          {!!priceGwei && (
-            <RowFixed style={{ marginRight: '8px' }}>
-              <ThemedText.DeprecatedMain fontSize="11px" mr="8px">
-                <MouseoverTooltip
-                  text={
-                    <Trans>
-                      The current fast gas amount for sending a transaction on L1. Gas fees are paid in Ethereum&apos;s
-                      native currency Ether (ETH) and denominated in GWEI.
-                    </Trans>
-                  }
-                >
-                  {priceGwei.toString()} <Trans>gwei</Trans>
-                </MouseoverTooltip>
-              </ThemedText.DeprecatedMain>
-              <StyledGasDot />
-            </RowFixed>
-          )}
-        </ExternalLink>
         <StyledPollingBlockNumber breathe={isMounting} hovering={isHover} warning={warning}>
           <ExternalLink href={blockExternalLinkHref}>
             <MouseoverTooltip

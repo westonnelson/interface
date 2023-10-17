@@ -1,7 +1,6 @@
 import { Trans } from '@lingui/macro'
-import Badge, { BadgeVariant } from 'components/Badge'
-import { AlertCircle } from 'react-feather'
-import styled from 'styled-components/macro'
+import { AlertTriangle, Slash } from 'react-feather'
+import styled, { useTheme } from 'styled-components'
 
 import { MouseoverTooltip } from '../../components/Tooltip'
 
@@ -12,36 +11,39 @@ const BadgeWrapper = styled.div`
 `
 
 const BadgeText = styled.div`
-  font-weight: 500;
-  font-size: 14px;
+  font-weight: 535;
+  font-size: 12px;
+  line-height: 14px;
+  margin-right: 8px;
 `
 
 const ActiveDot = styled.span`
-  background-color: ${({ theme }) => theme.accentSuccess};
+  background-color: ${({ theme }) => theme.success};
   border-radius: 50%;
   height: 8px;
   width: 8px;
-  margin-right: 4px;
 `
 
-export default function RangeBadge({
-  removed,
-  inRange,
-}: {
-  removed: boolean | undefined
-  inRange: boolean | undefined
-}) {
+const LabelText = styled.div<{ color: string }>`
+  align-items: center;
+  color: ${({ color }) => color};
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-end;
+`
+
+export default function RangeBadge({ removed, inRange }: { removed?: boolean; inRange?: boolean }) {
+  const theme = useTheme()
   return (
     <BadgeWrapper>
       {removed ? (
         <MouseoverTooltip text={<Trans>Your position has 0 liquidity, and is not earning fees.</Trans>}>
-          <Badge variant={BadgeVariant.DEFAULT}>
-            <AlertCircle width={14} height={14} />
-            &nbsp;
+          <LabelText color={theme.neutral2}>
             <BadgeText>
               <Trans>Closed</Trans>
             </BadgeText>
-          </Badge>
+            <Slash width={12} height={12} />
+          </LabelText>
         </MouseoverTooltip>
       ) : inRange ? (
         <MouseoverTooltip
@@ -51,12 +53,12 @@ export default function RangeBadge({
             </Trans>
           }
         >
-          <Badge variant={BadgeVariant.DEFAULT}>
-            <ActiveDot /> &nbsp;
+          <LabelText color={theme.success}>
             <BadgeText>
               <Trans>In range</Trans>
             </BadgeText>
-          </Badge>
+            <ActiveDot />
+          </LabelText>
         </MouseoverTooltip>
       ) : (
         <MouseoverTooltip
@@ -66,13 +68,12 @@ export default function RangeBadge({
             </Trans>
           }
         >
-          <Badge variant={BadgeVariant.WARNING}>
-            <AlertCircle width={14} height={14} />
-            &nbsp;
+          <LabelText color={theme.deprecated_accentWarning}>
             <BadgeText>
               <Trans>Out of range</Trans>
             </BadgeText>
-          </Badge>
+            <AlertTriangle width={12} height={12} />
+          </LabelText>
         </MouseoverTooltip>
       )}
     </BadgeWrapper>

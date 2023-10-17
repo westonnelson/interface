@@ -3,35 +3,29 @@ import { createSprinkles, defineProperties } from '@vanilla-extract/sprinkles'
 
 const themeContractValues = {
   colors: {
-    accentFailure: '',
-    accentFailureSoft: '',
-    accentAction: '',
-    accentActionSoft: '',
-    accentSuccess: '',
+    neutral1: '',
+    neutral2: '',
+    neutral3: '',
+    surface1: '',
+    surface2: '',
+    surface3: '',
+    surface4: '',
+    surface5: '',
+    accent1: '',
+    accent2: '',
 
-    explicitWhite: '',
-    gold: '',
-    green: '',
-    violet: '',
+    success: '',
+    critical: '',
+    scrim: '',
 
-    backgroundFloating: '',
-    backgroundInteractive: '',
-    backgroundModule: '',
-    backgroundOutline: '',
-    backgroundSurface: '',
-    backgroundBackdrop: '',
+    white: '',
 
-    modalBackdrop: '',
-
-    searchBackground: '',
-    searchOutline: '',
-
-    stateOverlayHover: '',
-
-    textPrimary: '',
-    textSecondary: '',
-    textTertiary: '',
-
+    // OLD NAMES
+    deprecated_accentFailureSoft: '',
+    deprecated_gold: '',
+    deprecated_violet: '',
+    deprecated_modalBackdrop: '',
+    deprecated_stateOverlayHover: '',
     dropShadow: '',
   },
 
@@ -52,6 +46,11 @@ const themeContractValues = {
 export type Theme = typeof themeContractValues
 
 export const themeVars = createGlobalThemeContract(themeContractValues, (_, path) => `genie-${path.join('-')}`)
+
+export const navDimensions = {
+  height: 72,
+  verticalPad: 20,
+}
 
 const dimensions = {
   '0': '0',
@@ -76,6 +75,7 @@ const dimensions = {
   '56': '56px',
   '60': '60px',
   '64': '64px',
+  '68': '68px',
   '72': '72px',
   '80': '80px',
   '100': '100px',
@@ -90,6 +90,7 @@ const dimensions = {
   full: '100%',
   min: 'min-content',
   max: 'max-content',
+  searchResultsMaxHeight: `calc(100vh - ${navDimensions.verticalPad * 2}px)`,
   viewHeight: '100vh',
   viewWidth: '100vw',
   auto: 'auto',
@@ -200,8 +201,31 @@ export const vars = createGlobalTheme(':root', {
     accentTextLightTertiary: 'rgba(255, 255, 255, 0.12)',
     outline: 'rgba(153, 161, 189, 0.24)',
     lightGrayOverlay: '#99A1BD14',
-    accentActiveSoft: '#4c82fb3d',
-    accentActive: '#4C82FB',
+    accentActiveSoft: '#311C31',
+    accentActive: '#FC72FF',
+    //NEW COLORS FOR SPORE - need to define light/dark here cause they are root colors now (different system)
+    neutral1_dark: '#FFFFFF',
+    neutral2_dark: '#9B9B9B',
+    neutral3_dark: '#5E5E5E',
+    surface1_dark: '#131313',
+    surface2_dark: '#1B1B1B',
+    surface3_dark: '#FFFFFF1f',
+    surface4_dark: '#FFFFFF33',
+    surface5_dark: '#00000004',
+    accent1_dark: '#FC72FF',
+    accent2_dark: '#311C31',
+    neutral1_light: '#222222',
+    neutral2_light: '#7D7D7D',
+    neutral3_light: '#CECECE',
+    surface1_light: '#FFFFFF',
+    surface2_light: '#F9F9F9',
+    surface3_light: '#2222220d',
+    surface4_light: '#ffffffa3',
+    surface5_light: '#0000000a',
+    accent1_light: '#FC72FF',
+    accent2_light: '#FFEFFF',
+    success: '#40B66B',
+    critical: '#FF5F52',
   },
   border: {
     transculent: '1.5px solid rgba(0, 0, 0, 0.1)',
@@ -252,11 +276,8 @@ export const vars = createGlobalTheme(':root', {
     '44': '44px',
   },
   fontWeight: {
-    normal: '400',
-    medium: '500',
-    semibold: '600',
-    bold: '700',
-    black: '900',
+    book: '485',
+    medium: '535',
   },
   time: {
     '125': '125ms',
@@ -313,6 +334,7 @@ const layoutStyles = defineProperties({
     placeContent: flexAlignment,
     fontSize: vars.fontSize,
     fontWeight: vars.fontWeight,
+    lineHeight: vars.lineHeight,
     marginBottom: spacing,
     marginLeft: spacing,
     marginRight: spacing,
@@ -411,7 +433,6 @@ const unresponsiveProperties = defineProperties({
     overflowX: overflow,
     overflowY: overflow,
     boxShadow: { ...themeVars.shadows, none: 'none', dropShadow: vars.color.dropShadow },
-    lineHeight: vars.lineHeight,
     transition: vars.time,
     transitionDuration: vars.time,
     animationDuration: vars.time,

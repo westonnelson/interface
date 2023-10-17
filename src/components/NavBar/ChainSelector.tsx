@@ -1,34 +1,48 @@
+import { t } from '@lingui/macro'
+import { ChainId } from '@uniswap/sdk-core'
 import { useWeb3React } from '@web3-react/core'
+import { showTestnetsAtom } from 'components/AccountDrawer/TestnetsToggle'
+import { ChainLogo } from 'components/Logo/ChainLogo'
+import { MouseoverTooltip } from 'components/Tooltip'
+import { getConnection } from 'connection'
+import { ConnectionType } from 'connection/types'
+import { WalletConnectV2 } from 'connection/WalletConnectV2'
 import { getChainInfo } from 'constants/chainInfo'
-import { SupportedChainId } from 'constants/chains'
+import { getChainPriority, L1_CHAIN_IDS, L2_CHAIN_IDS, TESTNET_CHAIN_IDS } from 'constants/chains'
 import { useOnClickOutside } from 'hooks/useOnClickOutside'
 import useSelectChain from 'hooks/useSelectChain'
 import useSyncChainQuery from 'hooks/useSyncChainQuery'
+import { useAtomValue } from 'jotai/utils'
 import { Box } from 'nft/components/Box'
 import { Portal } from 'nft/components/common/Portal'
 import { Column, Row } from 'nft/components/Flex'
-import { TokenWarningRedIcon } from 'nft/components/icons'
-import { subhead } from 'nft/css/common.css'
-import { themeVars } from 'nft/css/sprinkles.css'
 import { useIsMobile } from 'nft/hooks'
-import { useCallback, useRef, useState } from 'react'
-import { ChevronDown, ChevronUp } from 'react-feather'
-import { useTheme } from 'styled-components/macro'
+import { useCallback, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, ChevronDown, ChevronUp } from 'react-feather'
+import { useTheme } from 'styled-components'
+import { getSupportedChainIdsFromWalletConnectSession } from 'utils/getSupportedChainIdsFromWalletConnectSession'
 
 import * as styles from './ChainSelector.css'
 import ChainSelectorRow from './ChainSelectorRow'
 import { NavDropdown } from './NavDropdown'
 
-const NETWORK_SELECTOR_CHAINS = [
-  SupportedChainId.MAINNET,
-  SupportedChainId.POLYGON,
-  SupportedChainId.OPTIMISM,
-  SupportedChainId.ARBITRUM_ONE,
-  SupportedChainId.CELO,
-]
+const NETWORK_SELECTOR_CHAINS = [...L1_CHAIN_IDS, ...L2_CHAIN_IDS]
 
 interface ChainSelectorProps {
   leftAlign?: boolean
+}
+
+function useWalletSupportedChains(): ChainId[] {
+  const { connector } = useWeb3React()
+  const connectionType = getConnection(connector).type
+
+  switch (connectionType) {
+    case ConnectionType.WALLET_CONNECT_V2:
+    case ConnectionType.UNISWAP_WALLET_V2:
+      return getSupportedChainIdsFromWalletConnectSession((connector as WalletConnectV2).provider?.session)
+    default:
+      return NETWORK_SELECTOR_CHAINS
+  }
 }
 
 export const ChainSelector = ({ leftAlign }: ChainSelectorProps) => {
@@ -38,19 +52,41 @@ export const ChainSelector = ({ leftAlign }: ChainSelectorProps) => {
 
   const theme = useTheme()
 
+  const showTestnets = useAtomValue(showTestnetsAtom)
+  const walletSupportsChain = useWalletSupportedChains()
+
+  const [supportedChains, unsupportedChains] = useMemo(() => {
+    const { supported, unsupported } = NETWORK_SELECTOR_CHAINS.filter((chain: number) => {
+      return showTestnets || !TESTNET_CHAIN_IDS.includes(chain)
+    })
+      .sort((a, b) => getChainPriority(a) - getChainPriority(b))
+      .reduce(
+        (acc, chain) => {
+          if (walletSupportsChain.includes(chain)) {
+            acc.supported.push(chain)
+          } else {
+            acc.unsupported.push(chain)
+          }
+          return acc
+        },
+        { supported: [], unsupported: [] } as Record<string, ChainId[]>
+      )
+    return [supported, unsupported]
+  }, [showTestnets, walletSupportsChain])
+
   const ref = useRef<HTMLDivElement>(null)
   const modalRef = useRef<HTMLDivElement>(null)
   useOnClickOutside(ref, () => setIsOpen(false), [modalRef])
 
-  const info = chainId ? getChainInfo(chainId) : undefined
+  const info = getChainInfo(chainId)
 
   const selectChain = useSelectChain()
   useSyncChainQuery()
 
-  const [pendingChainId, setPendingChainId] = useState<SupportedChainId | undefined>(undefined)
+  const [pendingChainId, setPendingChainId] = useState<ChainId | undefined>(undefined)
 
   const onSelectChain = useCallback(
-    async (targetChainId: SupportedChainId) => {
+    async (targetChainId: ChainId) => {
       setPendingChainId(targetChainId)
       await selectChain(targetChainId)
       setPendingChainId(undefined)
@@ -67,13 +103,23 @@ export const ChainSelector = ({ leftAlign }: ChainSelectorProps) => {
 
   const dropdown = (
     <NavDropdown top="56" left={leftAlign ? '0' : 'auto'} right={leftAlign ? 'auto' : '0'} ref={modalRef}>
-      <Column paddingX="8">
-        {NETWORK_SELECTOR_CHAINS.map((chainId: SupportedChainId) => (
+      <Column paddingX="8" data-testid="chain-selector-options">
+        {supportedChains.map((selectorChain) => (
           <ChainSelectorRow
+            disabled={!walletSupportsChain.includes(selectorChain)}
             onSelectChain={onSelectChain}
-            targetChain={chainId}
-            key={chainId}
-            isPending={chainId === pendingChainId}
+            targetChain={selectorChain}
+            key={selectorChain}
+            isPending={selectorChain === pendingChainId}
+          />
+        ))}
+        {unsupportedChains.map((selectorChain) => (
+          <ChainSelectorRow
+            disabled
+            onSelectChain={() => undefined}
+            targetChain={selectorChain}
+            key={selectorChain}
+            isPending={false}
           />
         ))}
       </Column>
@@ -83,35 +129,28 @@ export const ChainSelector = ({ leftAlign }: ChainSelectorProps) => {
   const chevronProps = {
     height: 20,
     width: 20,
-    color: theme.textSecondary,
+    color: theme.neutral2,
   }
 
   return (
     <Box position="relative" ref={ref}>
-      <Row
-        as="button"
-        gap="8"
-        className={styles.ChainSelector}
-        background={isOpen ? 'accentActiveSoft' : 'none'}
-        onClick={() => setIsOpen(!isOpen)}
-      >
-        {!isSupported ? (
-          <>
-            <TokenWarningRedIcon fill={themeVars.colors.textSecondary} width={24} height={24} />
-            <Box as="span" className={subhead} display={{ sm: 'none', xxl: 'flex' }} style={{ lineHeight: '20px' }}>
-              Unsupported
-            </Box>
-          </>
-        ) : (
-          <>
-            <img src={info.logoUrl} alt={info.label} className={styles.Image} />
-            <Box as="span" className={subhead} display={{ sm: 'none', xxl: 'flex' }} style={{ lineHeight: '20px' }}>
-              {info.label}
-            </Box>
-          </>
-        )}
-        {isOpen ? <ChevronUp {...chevronProps} /> : <ChevronDown {...chevronProps} />}
-      </Row>
+      <MouseoverTooltip text={t`Your wallet's current network is unsupported.`} disabled={isSupported}>
+        <Row
+          data-testid="chain-selector"
+          as="button"
+          gap="8"
+          className={styles.ChainSelector}
+          background={isOpen ? 'accent2' : 'none'}
+          onClick={() => setIsOpen(!isOpen)}
+        >
+          {!isSupported ? (
+            <AlertTriangle size={20} color={theme.neutral2} />
+          ) : (
+            <ChainLogo chainId={chainId} size={24} testId="chain-selector-logo" />
+          )}
+          {isOpen ? <ChevronUp {...chevronProps} /> : <ChevronDown {...chevronProps} />}
+        </Row>
+      </MouseoverTooltip>
       {isOpen && (isMobile ? <Portal>{dropdown}</Portal> : <>{dropdown}</>)}
     </Box>
   )

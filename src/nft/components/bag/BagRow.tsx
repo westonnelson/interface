@@ -4,7 +4,7 @@ import clsx from 'clsx'
 import { ButtonEmphasis, ButtonSize, ThemeButton } from 'components/Button'
 import { TimedLoader } from 'nft/components/bag/TimedLoader'
 import { Box } from 'nft/components/Box'
-import { Suspicious } from 'nft/components/collection/Card'
+import { Suspicious } from 'nft/components/card/icons'
 import { Column, Row } from 'nft/components/Flex'
 import {
   ChevronDownBagIcon,
@@ -21,7 +21,7 @@ import { GenieAsset, UpdatedGenieAsset } from 'nft/types'
 import { ethNumberStandardFormatter, formatWeiToDecimal, getAssetHref } from 'nft/utils'
 import { MouseEvent, useCallback, useEffect, useReducer, useState } from 'react'
 import { Link } from 'react-router-dom'
-import styled from 'styled-components/macro'
+import styled from 'styled-components'
 
 import * as styles from './BagRow.css'
 
@@ -69,7 +69,7 @@ const NoContentContainer = () => (
       style={{ transform: 'translate3d(-50%, -50%, 0)' }}
       color="gray500"
       fontSize="12"
-      fontWeight="normal"
+      fontWeight="book"
     >
       Image
       <br />
@@ -82,7 +82,7 @@ const NoContentContainer = () => (
 
 interface BagRowProps {
   asset: UpdatedGenieAsset
-  usdPrice: number | undefined
+  usdPrice?: number
   removeAsset: (assets: GenieAsset[]) => void
   showRemove?: boolean
   grayscale?: boolean
@@ -137,7 +137,7 @@ export const BagRow = ({ asset, usdPrice, removeAsset, showRemove, grayscale, is
           {!loadedImage && <Box position="absolute" className={`${styles.bagRowImage} ${loadingBlock}`} />}
           {noImageAvailable && <NoContentContainer />}
         </Box>
-        <Column overflow="hidden" width="full" color={grayscale ? 'textSecondary' : 'textPrimary'}>
+        <Column overflow="hidden" width="full" color={grayscale ? 'neutral2' : 'neutral1'}>
           <Row overflow="hidden" width="full" whiteSpace="nowrap">
             <Box className={styles.assetName}>{asset.name ?? `#${asset.tokenId}`}</Box>
             {asset.susFlag && <Suspicious />}
@@ -168,7 +168,7 @@ export const BagRow = ({ asset, usdPrice, removeAsset, showRemove, grayscale, is
 
 interface PriceChangeBagRowProps {
   asset: UpdatedGenieAsset
-  usdPrice: number | undefined
+  usdPrice?: number
   markAssetAsReviewed: (asset: UpdatedGenieAsset, toKeep: boolean) => void
   top?: boolean
   isMobile: boolean
@@ -195,7 +195,7 @@ export const PriceChangeBagRow = ({ asset, usdPrice, markAssetAsReviewed, top, i
     [asset, markAssetAsReviewed]
   )
   return (
-    <Column className={styles.priceChangeColumn} borderTopColor={top ? 'backgroundOutline' : 'transparent'}>
+    <Column className={styles.priceChangeColumn} borderTopColor={top ? 'surface3' : 'transparent'}>
       <Row className={styles.priceChangeRow}>
         {isPriceIncrease ? <SquareArrowUpIcon /> : <SquareArrowDownIcon />}
         <Box>{`Price ${isPriceIncrease ? 'increased' : 'decreased'} from ${formatWeiToDecimal(
@@ -219,7 +219,7 @@ export const PriceChangeBagRow = ({ asset, usdPrice, markAssetAsReviewed, top, i
 
 interface UnavailableAssetsHeaderRowProps {
   assets?: UpdatedGenieAsset[]
-  usdPrice: number | undefined
+  usdPrice?: number
   clearUnavailableAssets: () => void
   didOpenUnavailableAssets: boolean
   setDidOpenUnavailableAssets: (didOpen: boolean) => void
@@ -250,7 +250,7 @@ const UnavailableAssetsPreview = ({ assets }: UnavailableAssetsPreviewProps) => 
         height="32"
         borderStyle="solid"
         borderWidth="1px"
-        borderColor="backgroundSurface"
+        borderColor="surface1"
         borderRadius="4"
         style={{ zIndex: index }}
         className={styles.grayscaleImage}
@@ -306,19 +306,19 @@ export const UnavailableAssetsHeaderRow = ({
             }
           }}
         >
-          <Row gap="12" color="textSecondary" className={bodySmall}>
+          <Row gap="12" color="neutral2" className={bodySmall}>
             {!isShowingAssets && <UnavailableAssetsPreview assets={assets.slice(0, 5)} />}
             No longer available
           </Row>
           {moreThanOneUnavailable && (
-            <Row color="textSecondary">{isOpen ? <ChevronUpBagIcon /> : <ChevronDownBagIcon />}</Row>
+            <Row color="neutral2">{isOpen ? <ChevronUpBagIcon /> : <ChevronDownBagIcon />}</Row>
           )}
           {!didOpenUnavailableAssets && (
             <Row
               position="relative"
               width="20"
               height="20"
-              color="textPrimary"
+              color="neutral1"
               justifyContent="center"
               cursor="pointer"
               onClick={clearUnavailableAssets}

@@ -1,13 +1,13 @@
 import { formatEther } from '@ethersproject/units'
-import { SquareArrowDownIcon, SquareArrowUpIcon, VerifiedIcon } from 'nft/components/icons'
+import { DeltaArrow } from 'components/Tokens/TokenDetails/Delta'
+import { VerifiedIcon } from 'nft/components/icons'
 import { useIsMobile } from 'nft/hooks'
 import { Denomination } from 'nft/types'
-import { volumeFormatter } from 'nft/utils'
+import { ethNumberStandardFormatter, volumeFormatter } from 'nft/utils'
 import { ReactNode } from 'react'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 
-import { ethNumberStandardFormatter, formatWeiToDecimal } from '../../../utils/currency'
 import * as styles from './Cells.css'
 
 const TruncatedText = styled.div`
@@ -32,7 +32,7 @@ const TruncatedSubHeader = styled(ThemedText.SubHeader)`
   text-overflow: ellipsis;
 `
 const TruncatedSubHeaderSmall = styled(ThemedText.SubHeaderSmall)`
-  color: ${({ theme }) => `${theme.textPrimary}`};
+  color: ${({ theme }) => `${theme.neutral1}`};
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -42,7 +42,7 @@ const RoundedImage = styled.div<{ src?: string }>`
   height: 36px;
   width: 36px;
   border-radius: 36px;
-  background: ${({ src, theme }) => (src ? `url(${src})` : theme.backgroundModule)};
+  background: ${({ src, theme }) => (src ? `url(${src})` : theme.surface2)};
   background-size: cover;
   background-position: center;
   flex-shrink: 0;
@@ -50,15 +50,15 @@ const RoundedImage = styled.div<{ src?: string }>`
 
 const ChangeCellContainer = styled.div<{ change: number }>`
   display: flex;
-  color: ${({ theme, change }) => (change >= 0 ? theme.accentSuccess : theme.accentFailure)};
-  justify-content: end;
+  color: ${({ theme, change }) => (change >= 0 ? theme.success : theme.critical)};
+  justify-content: flex-end;
   align-items: center;
   gap: 2px;
 `
 
 const EthContainer = styled.div`
   display: flex;
-  justify-content: end;
+  justify-content: flex-end;
 `
 
 interface CellProps {
@@ -113,10 +113,10 @@ export const EthCell = ({
   denomination: Denomination
   usdPrice?: number
 }) => {
-  const denominatedValue = getDenominatedValue(denomination, true, value, usdPrice)
+  const denominatedValue = getDenominatedValue(denomination, false, value, usdPrice)
   const formattedValue = denominatedValue
     ? denomination === Denomination.ETH
-      ? formatWeiToDecimal(denominatedValue.toString(), true) + ' ETH'
+      ? ethNumberStandardFormatter(denominatedValue.toString(), false, true, false) + ' ETH'
       : ethNumberStandardFormatter(denominatedValue, true, false, true)
     : '-'
 
@@ -158,14 +158,10 @@ export const VolumeCell = ({
 
 export const ChangeCell = ({ change, children }: { children?: ReactNode; change?: number }) => {
   const isMobile = useIsMobile()
-  const TextComponent = isMobile ? ThemedText.Caption : ThemedText.BodyPrimary
+  const TextComponent = isMobile ? ThemedText.BodySmall : ThemedText.BodyPrimary
   return (
     <ChangeCellContainer change={change ?? 0}>
-      {!change || change > 0 ? (
-        <SquareArrowUpIcon width="20px" height="20px" />
-      ) : (
-        <SquareArrowDownIcon width="20px" height="20px" />
-      )}
+      <DeltaArrow delta={change} />
       <TextComponent color="currentColor">{children || `${change ? Math.abs(Math.round(change)) : 0}%`}</TextComponent>
     </ChangeCellContainer>
   )

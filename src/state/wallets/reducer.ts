@@ -1,16 +1,19 @@
 import { createSlice } from '@reduxjs/toolkit'
+import { ChainId } from '@uniswap/sdk-core'
 import { shallowEqual } from 'react-redux'
 
 import { Wallet } from './types'
 
-/* Used to track wallets that have been connected by the user in current session, and remove them when deliberately disconnected. 
-  Used to compute is_reconnect event property for analytics */
-interface WalletState {
+export interface WalletState {
+  // Used to track wallets that have been connected by the user in current session, and remove them when deliberately disconnected.
+  // Used to compute is_reconnect event property for analytics
   connectedWallets: Wallet[]
+  switchingChain: ChainId | false
 }
 
 const initialState: WalletState = {
   connectedWallets: [],
+  switchingChain: false,
 }
 
 const walletsSlice = createSlice({
@@ -18,16 +21,17 @@ const walletsSlice = createSlice({
   initialState,
   reducers: {
     addConnectedWallet(state, { payload }) {
-      const existsAlready = state.connectedWallets.find((wallet) => shallowEqual(payload, wallet))
-      if (!existsAlready) {
-        state.connectedWallets = state.connectedWallets.concat(payload)
-      }
+      if (state.connectedWallets.some((wallet) => shallowEqual(payload, wallet))) return
+      state.connectedWallets = [...state.connectedWallets, payload]
     },
-    removeConnectedWallet(state, { payload }) {
-      state.connectedWallets = state.connectedWallets.filter((wallet) => !shallowEqual(wallet, payload))
+    startSwitchingChain(state, { payload }) {
+      state.switchingChain = payload
+    },
+    endSwitchingChain(state) {
+      state.switchingChain = false
     },
   },
 })
 
-export const { addConnectedWallet, removeConnectedWallet } = walletsSlice.actions
+export const { addConnectedWallet, startSwitchingChain, endSwitchingChain } = walletsSlice.actions
 export default walletsSlice.reducer

@@ -5,8 +5,8 @@ import { AutoColumn } from 'components/Column'
 import { useFeeTierDistribution } from 'hooks/useFeeTierDistribution'
 import { PoolState } from 'hooks/usePools'
 import React from 'react'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 
 import { FeeTierPercentageBadge } from './FeeTierPercentageBadge'
 import { FEE_AMOUNT_DETAIL } from './shared'
@@ -37,7 +37,7 @@ export function FeeOption({ feeAmount, active, poolState, distributions, onClick
           <ResponsiveText>
             <Trans>{FEE_AMOUNT_DETAIL[feeAmount].label}%</Trans>
           </ResponsiveText>
-          <ThemedText.DeprecatedMain fontWeight={400} fontSize="12px" textAlign="left">
+          <ThemedText.DeprecatedMain fontWeight={485} fontSize="12px" textAlign="left">
             {FEE_AMOUNT_DETAIL[feeAmount].description}
           </ThemedText.DeprecatedMain>
         </AutoColumn>

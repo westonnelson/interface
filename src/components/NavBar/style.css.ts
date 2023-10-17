@@ -6,7 +6,8 @@ import { sprinkles, vars } from '../../nft/css/sprinkles.css'
 export const logoContainer = style([
   sprinkles({
     display: 'flex',
-    marginRight: { sm: '12', xxl: '20' },
+    marginRight: '12',
+    alignItems: 'center',
     cursor: 'pointer',
   }),
 ])
@@ -14,7 +15,7 @@ export const logoContainer = style([
 export const logo = style([
   sprinkles({
     display: 'block',
-    color: 'textPrimary',
+    color: 'accent1',
   }),
 ])
 
@@ -40,11 +41,12 @@ export const searchContainer = style([
     flex: '1',
     flexShrink: '1',
     justifyContent: { lg: 'flex-end', xl: 'center' },
-    display: { sm: 'none', xl: 'flex' },
+    display: { sm: 'none' },
     alignSelf: 'center',
-    height: '48',
+
     alignItems: 'flex-start',
   }),
+  { height: '42px' },
 ])
 
 export const rightSideContainer = style([
@@ -59,16 +61,21 @@ const baseMenuItem = style([
   subhead,
   sprinkles({
     paddingY: '8',
-    paddingX: '16',
+    paddingX: { sm: '6', md: '14' },
     marginY: '4',
-    borderRadius: '12',
+    borderRadius: '14',
+    marginX: { sm: '4', md: '0' },
     transition: '250',
     height: 'min',
     width: 'full',
     textAlign: 'center',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '4',
   }),
   {
-    lineHeight: '24px',
+    lineHeight: '22px',
     textDecoration: 'none',
     ':hover': {
       background: vars.color.lightGrayOverlay,
@@ -79,14 +86,14 @@ const baseMenuItem = style([
 export const menuItem = style([
   baseMenuItem,
   sprinkles({
-    color: 'textSecondary',
+    color: 'neutral2',
   }),
 ])
 
 export const activeMenuItem = style([
   baseMenuItem,
   sprinkles({
-    color: 'textPrimary',
-    background: 'backgroundFloating',
+    color: 'neutral1',
+    background: 'none',
   }),
 ])

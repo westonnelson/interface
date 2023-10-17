@@ -1,37 +1,42 @@
 import { useWeb3React } from '@web3-react/core'
+import { OffchainActivityModal } from 'components/AccountDrawer/MiniPortfolio/Activity/OffchainActivityModal'
+import UniwalletModal from 'components/AccountDrawer/UniwalletModal'
+import AirdropModal from 'components/AirdropModal'
+import BaseAnnouncementBanner from 'components/Banner/BaseAnnouncementBanner'
 import AddressClaimModal from 'components/claim/AddressClaimModal'
 import ConnectedAccountBlocked from 'components/ConnectedAccountBlocked'
+import FiatOnrampModal from 'components/FiatOnrampModal'
+import { UkDisclaimerModal } from 'components/NavBar/UkDisclaimerModal'
+import DevFlagsBox from 'dev/DevFlagsBox'
 import useAccountRiskCheck from 'hooks/useAccountRiskCheck'
-import NftExploreBanner from 'nft/components/nftExploreBanner/NftExploreBanner'
-import { lazy } from 'react'
-import { useLocation } from 'react-router-dom'
+import Bag from 'nft/components/bag/Bag'
+import TransactionCompleteModal from 'nft/components/collection/TransactionCompleteModal'
 import { useModalIsOpen, useToggleModal } from 'state/application/hooks'
 import { ApplicationModal } from 'state/application/reducer'
-
-const Bag = lazy(() => import('nft/components/bag/Bag'))
-const TransactionCompleteModal = lazy(() => import('nft/components/collection/TransactionCompleteModal'))
-const AirdropModal = lazy(() => import('components/AirdropModal'))
+import { isDevelopmentEnv, isStagingEnv } from 'utils/env'
 
 export default function TopLevelModals() {
   const addressClaimOpen = useModalIsOpen(ApplicationModal.ADDRESS_CLAIM)
   const addressClaimToggle = useToggleModal(ApplicationModal.ADDRESS_CLAIM)
   const blockedAccountModalOpen = useModalIsOpen(ApplicationModal.BLOCKED_ACCOUNT)
   const { account } = useWeb3React()
-  const location = useLocation()
-  const pageShowsNftPromoBanner =
-    location.pathname.startsWith('/swap') ||
-    location.pathname.startsWith('/tokens') ||
-    location.pathname.startsWith('/pool')
   useAccountRiskCheck(account)
-  const open = Boolean(blockedAccountModalOpen && account)
+  const accountBlocked = Boolean(blockedAccountModalOpen && account)
+  const shouldShowDevFlags = isDevelopmentEnv() || isStagingEnv()
+
   return (
     <>
       <AddressClaimModal isOpen={addressClaimOpen} onDismiss={addressClaimToggle} />
-      <ConnectedAccountBlocked account={account} isOpen={open} />
+      <ConnectedAccountBlocked account={account} isOpen={accountBlocked} />
       <Bag />
+      <UniwalletModal />
+      <BaseAnnouncementBanner />
+      <OffchainActivityModal />
       <TransactionCompleteModal />
       <AirdropModal />
-      {pageShowsNftPromoBanner && <NftExploreBanner />}
+      <FiatOnrampModal />
+      <UkDisclaimerModal />
+      {shouldShowDevFlags && <DevFlagsBox />}
     </>
   )
 }

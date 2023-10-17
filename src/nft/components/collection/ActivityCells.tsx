@@ -1,7 +1,9 @@
-import { sendAnalyticsEvent, useTrace } from '@uniswap/analytics'
-import { EventName, PageName } from '@uniswap/analytics-events'
-import { ChainId } from '@uniswap/smart-order-router'
+import { Trans } from '@lingui/macro'
+import { InterfacePageName, NFTEventName } from '@uniswap/analytics-events'
+import { ChainId } from '@uniswap/sdk-core'
+import { sendAnalyticsEvent, useTrace } from 'analytics'
 import { MouseoverTooltip } from 'components/Tooltip'
+import { NftActivityType, NftMarketplace, OrderStatus } from 'graphql/data/__generated__/types-and-hooks'
 import { Box } from 'nft/components/Box'
 import { Column, Row } from 'nft/components/Flex'
 import {
@@ -14,59 +16,73 @@ import {
 } from 'nft/components/icons'
 import {
   ActivityEvent,
-  ActivityEventType,
   ActivityEventTypeDisplay,
   BagItem,
   GenieAsset,
   Markets,
-  OrderStatus,
+  Rarity,
   TokenMetadata,
   TokenRarity,
 } from 'nft/types'
-import { shortenAddress } from 'nft/utils/address'
+import { getMarketplaceIcon } from 'nft/utils'
 import { buildActivityAsset } from 'nft/utils/buildActivityAsset'
-import { formatEthPrice } from 'nft/utils/currency'
-import { getTimeDifference, isValidDate } from 'nft/utils/date'
+import { formatEth } from 'nft/utils/currency'
+import { getTimeDifference } from 'nft/utils/date'
 import { putCommas } from 'nft/utils/putCommas'
-import { fallbackProvider, getRarityProviderLogo } from 'nft/utils/rarity'
-import { MouseEvent, useMemo, useState } from 'react'
-import styled from 'styled-components/macro'
-import { ExternalLink } from 'theme'
+import { MouseEvent, ReactNode, useMemo, useState } from 'react'
+import styled from 'styled-components'
+import { ExternalLink } from 'theme/components'
+import { shortenAddress } from 'utils'
 import { ExplorerDataType, getExplorerLink } from 'utils/getExplorerLink'
 
 import * as styles from './Activity.css'
 
 const AddressLink = styled(ExternalLink)`
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
   text-decoration: none;
-  font-weight: 400;
+  font-weight: 485;
   line-height: 20px;
   a {
-    color: ${({ theme }) => theme.textPrimary};
+    color: ${({ theme }) => theme.neutral1};
     text-decoration: none;
   }
   a:hover {
-    color: ${({ theme }) => theme.textPrimary};
+    color: ${({ theme }) => theme.neutral1};
     text-decoration: none;
     opacity: ${({ theme }) => theme.opacity.hover};
   }
   a:focus {
-    color: ${({ theme }) => theme.textPrimary};
+    color: ${({ theme }) => theme.neutral1};
     text-decoration: none;
     opacity: ${({ theme }) => theme.opacity.click};
   }
 `
 
-const formatListingStatus = (status: OrderStatus): string => {
+const isPurchasableOrder = (orderStatus?: OrderStatus, marketplace?: string): boolean => {
+  if (!marketplace || !orderStatus) return false
+  const purchasableMarkets = Object.keys(NftMarketplace).map((market) => market.toLowerCase())
+
+  const validOrder = orderStatus === OrderStatus.Valid
+  const isPurchasableMarket = purchasableMarkets.includes(marketplace.toLowerCase())
+  return validOrder && isPurchasableMarket
+}
+
+const formatListingStatus = (status: OrderStatus, orderIsPurchasable: boolean, isSelected: boolean): ReactNode => {
+  if (orderIsPurchasable) {
+    return isSelected ? <Trans>Remove</Trans> : <Trans>Add to bag</Trans>
+  }
+
   switch (status) {
-    case OrderStatus.EXECUTED:
-      return 'Sold'
-    case OrderStatus.CANCELLED:
-      return 'Cancelled'
-    case OrderStatus.EXPIRED:
-      return 'Expired'
-    case OrderStatus.VALID:
-      return 'Add to Bag'
+    case OrderStatus.Executed:
+      return <Trans>Sold</Trans>
+    case OrderStatus.Cancelled:
+      return <Trans>Cancelled</Trans>
+    case OrderStatus.Expired:
+      return <Trans>Expired</Trans>
+    case OrderStatus.Valid:
+      return <Trans>Unavailable</Trans>
+    default:
+      return null
   }
 }
 
@@ -101,8 +117,8 @@ export const BuyCell = ({
     return itemsInBag.some((item) => asset.tokenId === item.asset.tokenId && asset.address === item.asset.address)
   }, [asset, itemsInBag])
 
-  const trace = useTrace({ page: PageName.NFT_COLLECTION_PAGE })
-
+  const orderIsPurchasable = isPurchasableOrder(event.orderStatus, event.marketplace)
+  const trace = useTrace({ page: InterfacePageName.NFT_COLLECTION_PAGE })
   const eventProperties = {
     collection_address: asset.address,
     token_id: asset.tokenId,
@@ -112,23 +128,19 @@ export const BuyCell = ({
 
   return (
     <Column display={{ sm: 'none', lg: 'flex' }} height="full" justifyContent="center" marginX="auto">
-      {event.eventType === ActivityEventType.Listing && event.orderStatus ? (
+      {event.eventType === NftActivityType.Listing && event.orderStatus ? (
         <Box
           as="button"
-          className={event.orderStatus === OrderStatus.VALID && isSelected ? styles.removeCell : styles.buyCell}
+          className={orderIsPurchasable && isSelected ? styles.removeCell : styles.buyCell}
           onClick={(e: MouseEvent) => {
             e.preventDefault()
             isSelected ? removeAsset([asset]) : selectAsset([asset])
             !isSelected && !cartExpanded && !isMobile && toggleCart()
-            !isSelected && sendAnalyticsEvent(EventName.NFT_BUY_ADDED, { eventProperties })
+            !isSelected && sendAnalyticsEvent(NFTEventName.NFT_BUY_ADDED, { eventProperties })
           }}
-          disabled={event.orderStatus !== OrderStatus.VALID}
+          disabled={!orderIsPurchasable}
         >
-          {event.orderStatus === OrderStatus.VALID ? (
-            <>{`${isSelected ? 'Remove' : 'Add to bag'}`}</>
-          ) : (
-            <>{`${formatListingStatus(event.orderStatus)}`}</>
-          )}
+          {formatListingStatus(event.orderStatus, orderIsPurchasable, isSelected)}
         </Box>
       ) : (
         '-'
@@ -153,27 +165,16 @@ export const AddressCell = ({ address, desktopLBreakpoint, chainId }: AddressCel
         href={getExplorerLink(chainId ?? ChainId.MAINNET, address ?? '', ExplorerDataType.ADDRESS)}
         style={{ textDecoration: 'none' }}
       >
-        <Box onClick={(e) => e.stopPropagation()}>{address ? shortenAddress(address, 2, 4) : '-'}</Box>
+        <Box onClick={(e) => e.stopPropagation()}>{address ? shortenAddress(address, 2) : '-'}</Box>
       </AddressLink>
     </Column>
-  )
-}
-
-export const MarketplaceIcon = ({ marketplace }: { marketplace: Markets }) => {
-  return (
-    <Box
-      as="img"
-      alt={marketplace}
-      src={`/nft/svgs/marketplaces/${marketplace}.svg`}
-      className={styles.marketplaceIcon}
-    />
   )
 }
 
 const PriceTooltip = ({ price }: { price: string }) => (
   <MouseoverTooltip
     text={
-      <Box textAlign="left" fontSize="14" fontWeight="normal" color="textSecondary">
+      <Box textAlign="left" fontSize="14" fontWeight="book" color="neutral2">
         {`${price} ETH`}
       </Box>
     }
@@ -183,12 +184,12 @@ const PriceTooltip = ({ price }: { price: string }) => (
   </MouseoverTooltip>
 )
 
-export const PriceCell = ({ marketplace, price }: { marketplace?: Markets; price?: string }) => {
-  const formattedPrice = useMemo(() => (price ? putCommas(formatEthPrice(price))?.toString() : null), [price])
+export const PriceCell = ({ marketplace, price }: { marketplace?: Markets | string; price?: string | number }) => {
+  const formattedPrice = useMemo(() => (price ? formatEth(parseFloat(price?.toString())) : null), [price])
 
   return (
     <Row display={{ sm: 'none', md: 'flex' }} gap="8">
-      {marketplace && <MarketplaceIcon marketplace={marketplace} />}
+      {marketplace && getMarketplaceIcon(marketplace, '16')}
       {formattedPrice ? (
         formattedPrice.length > 6 ? (
           <PriceTooltip price={formattedPrice} />
@@ -203,23 +204,23 @@ export const PriceCell = ({ marketplace, price }: { marketplace?: Markets; price
 }
 
 interface EventCellProps {
-  eventType: ActivityEventType
+  eventType: NftActivityType
   eventTimestamp?: number
   eventTransactionHash?: string
   eventOnly?: boolean
-  price?: string
+  price?: string | number
   isMobile?: boolean
 }
 
-const renderEventIcon = (eventType: ActivityEventType) => {
+const renderEventIcon = (eventType: NftActivityType) => {
   switch (eventType) {
-    case ActivityEventType.Listing:
+    case NftActivityType.Listing:
       return <ActivityListingIcon width={16} height={16} />
-    case ActivityEventType.Sale:
+    case NftActivityType.Sale:
       return <ActivitySaleIcon width={16} height={16} />
-    case ActivityEventType.Transfer:
+    case NftActivityType.Transfer:
       return <ActivityTransferIcon width={16} height={16} />
-    case ActivityEventType.CancelListing:
+    case NftActivityType.CancelListing:
       return <CancelListingIcon width={16} height={16} />
     default:
       return null
@@ -237,15 +238,15 @@ const ExternalLinkIcon = ({ transactionHash }: { transactionHash: string }) => (
   </Row>
 )
 
-const eventColors = (eventType: ActivityEventType) => {
+const eventColors = (eventType: NftActivityType) => {
   const activityEvents = {
-    [ActivityEventType.Listing]: 'gold',
-    [ActivityEventType.Sale]: 'green',
-    [ActivityEventType.Transfer]: 'violet',
-    [ActivityEventType.CancelListing]: 'accentFailure',
+    [NftActivityType.Listing]: 'deprecated_gold',
+    [NftActivityType.Sale]: 'success',
+    [NftActivityType.Transfer]: 'deprecated_violet',
+    [NftActivityType.CancelListing]: 'critical',
   }
 
-  return activityEvents[eventType] as 'gold' | 'green' | 'violet' | 'accentFailure'
+  return activityEvents[eventType] as 'deprecated_gold' | 'success' | 'deprecated_violet' | 'critical'
 }
 
 export const EventCell = ({
@@ -256,20 +257,20 @@ export const EventCell = ({
   price,
   isMobile,
 }: EventCellProps) => {
-  const formattedPrice = useMemo(() => (price ? putCommas(formatEthPrice(price))?.toString() : null), [price])
+  const formattedPrice = useMemo(() => (price ? formatEth(parseFloat(price?.toString())) : null), [price])
   return (
     <Column height="full" justifyContent="center" gap="4">
       <Row className={styles.eventDetail} color={eventColors(eventType)}>
         {renderEventIcon(eventType)}
         {ActivityEventTypeDisplay[eventType]}
       </Row>
-      {eventTimestamp && isValidDate(eventTimestamp) && !isMobile && !eventOnly && (
+      {eventTimestamp && !isMobile && !eventOnly && (
         <Row className={styles.eventTime}>
           {getTimeDifference(eventTimestamp.toString())}
           {eventTransactionHash && <ExternalLinkIcon transactionHash={eventTransactionHash} />}
         </Row>
       )}
-      {isMobile && price && <Row fontSize="16" fontWeight="normal" color="textPrimary">{`${formattedPrice} ETH`}</Row>}
+      {isMobile && price && <Row fontSize="16" fontWeight="book" color="neutral1">{`${formattedPrice} ETH`}</Row>}
     </Column>
   )
 }
@@ -298,7 +299,7 @@ const NoContentContainer = () => (
       style={{ transform: 'translate3d(-50%, -50%, 0)' }}
       color="gray500"
       fontSize="12"
-      fontWeight="normal"
+      fontWeight="book"
     >
       Image
       <br />
@@ -310,14 +311,16 @@ const NoContentContainer = () => (
 )
 
 interface RankingProps {
-  rarity: TokenRarity
+  rarity: TokenRarity | Rarity
   collectionName: string
   rarityVerified: boolean
   details?: boolean
 }
 
-const Ranking = ({ details, rarity, collectionName, rarityVerified }: RankingProps) => {
-  const rarityProviderLogo = getRarityProviderLogo(rarity.source)
+const Ranking = ({ rarity, collectionName, rarityVerified }: RankingProps) => {
+  const rank = (rarity as TokenRarity).rank || (rarity as Rarity).providers?.[0].rank
+
+  if (!rank) return null
 
   return (
     <Box>
@@ -325,12 +328,10 @@ const Ranking = ({ details, rarity, collectionName, rarityVerified }: RankingPro
         text={
           <Row>
             <Box display="flex" marginRight="4">
-              <img src={rarityProviderLogo} alt="cardLogo" width={16} />
+              <img src="/nft/svgs/gem.svg" alt="cardLogo" width={16} />
             </Box>
             <Box width="full" fontSize="14">
-              {rarityVerified
-                ? `Verified by ${collectionName}`
-                : `Ranking by ${rarity.source === 'Genie' ? fallbackProvider : rarity.source}`}
+              {rarityVerified ? `Verified by ${collectionName}` : `Ranking by Rarity Sniper`}
             </Box>
           </Row>
         }
@@ -338,7 +339,7 @@ const Ranking = ({ details, rarity, collectionName, rarityVerified }: RankingPro
       >
         <Box className={styles.rarityInfo}>
           <Box paddingTop="2" paddingBottom="2" display="flex">
-            {putCommas(rarity.rank)}
+            {putCommas(rank)}
           </Box>
 
           <Box display="flex" height="16">
@@ -385,7 +386,7 @@ export const ItemCell = ({ event, rarityVerified, collectionName, eventTimestamp
             collectionName={collectionName}
           />
         )}
-        {isMobile && eventTimestamp && isValidDate(eventTimestamp) && getTimeDifference(eventTimestamp.toString())}
+        {isMobile && eventTimestamp && getTimeDifference(eventTimestamp.toString())}
       </Column>
     </Row>
   )

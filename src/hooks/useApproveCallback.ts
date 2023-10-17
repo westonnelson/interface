@@ -1,6 +1,4 @@
-import { Trade } from '@uniswap/router-sdk'
-import { Currency, CurrencyAmount, Percent, TradeType } from '@uniswap/sdk-core'
-import useSwapApproval from 'lib/hooks/swap/useSwapApproval'
+import { Currency, CurrencyAmount } from '@uniswap/sdk-core'
 import { ApprovalState, useApproval } from 'lib/hooks/useApproval'
 import { useCallback } from 'react'
 
@@ -13,8 +11,13 @@ function useGetAndTrackApproval(getApproval: ReturnType<typeof useApproval>[1]) 
   return useCallback(() => {
     return getApproval().then((pending) => {
       if (pending) {
-        const { response, tokenAddress, spenderAddress: spender } = pending
-        addTransaction(response, { type: TransactionType.APPROVAL, tokenAddress, spender })
+        const { response, tokenAddress, spenderAddress: spender, amount } = pending
+        addTransaction(response, {
+          type: TransactionType.APPROVAL,
+          tokenAddress,
+          spender,
+          amount: amount.quotient.toString(),
+        })
       }
     })
   }, [addTransaction, getApproval])
@@ -26,13 +29,5 @@ export function useApproveCallback(
   spender?: string
 ): [ApprovalState, () => Promise<void>] {
   const [approval, getApproval] = useApproval(amountToApprove, spender, useHasPendingApproval)
-  return [approval, useGetAndTrackApproval(getApproval)]
-}
-
-export function useApproveCallbackFromTrade(
-  trade: Trade<Currency, Currency, TradeType> | undefined,
-  allowedSlippage: Percent
-): [ApprovalState, () => Promise<void>] {
-  const [approval, getApproval] = useSwapApproval(trade, allowedSlippage, useHasPendingApproval)
   return [approval, useGetAndTrackApproval(getApproval)]
 }

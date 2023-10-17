@@ -1,13 +1,12 @@
 import { OpacityHoverState } from 'components/Common'
-import ms from 'ms.macro'
+import { HistoryDuration } from 'graphql/data/__generated__/types-and-hooks'
+import { useTrendingCollections } from 'graphql/data/nft/TrendingCollections'
+import { useNativeUsdPrice } from 'nft/hooks'
 import { CollectionTableColumn, Denomination, TimePeriod, VolumeType } from 'nft/types'
-import { fetchPrice } from 'nft/utils'
 import { useMemo, useState } from 'react'
-import { useQuery } from 'react-query'
-import styled from 'styled-components/macro'
-import { ThemedText } from 'theme'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
 
-import { fetchTrendingCollections } from '../../queries'
 import CollectionTable from './CollectionTable'
 
 const timeOptions: { label: string; value: TimePeriod }[] = [
@@ -21,15 +20,15 @@ const ExploreContainer = styled.div`
   display: flex;
   flex-direction: column;
   width: 100%;
-  max-width: 1200px;
+  max-width: ${({ theme }) => theme.maxWidth};
   padding: 0 16px;
 `
 
 const StyledHeader = styled.div`
-  color: ${({ theme }) => theme.textPrimary};
+  color: ${({ theme }) => theme.neutral1};
   font-size: 36px;
   line-height: 44px;
-  weight: 500;
+  font-weight: 535;
 
   @media only screen and (max-width: ${({ theme }) => `${theme.breakpoint.sm}px`}) {
     font-size: 20px;
@@ -51,7 +50,7 @@ const FiltersRow = styled.div`
 
 const Filter = styled.div`
   display: flex;
-  border: 1px solid ${({ theme }) => theme.backgroundOutline};
+  border: 1px solid ${({ theme }) => theme.surface3};
   border-radius: 16px;
   padding: 4px;
 `
@@ -59,43 +58,45 @@ const Filter = styled.div`
 const Selector = styled.div<{ active: boolean }>`
   padding: 8px 12px;
   border-radius: 12px;
-  background: ${({ active, theme }) => (active ? theme.backgroundInteractive : 'none')};
+  background: ${({ active, theme }) => (active ? theme.surface3 : 'none')};
   cursor: pointer;
 
   ${OpacityHoverState}
 `
 
 const StyledSelectorText = styled(ThemedText.SubHeader)<{ active: boolean }>`
-  color: ${({ theme, active }) => (active ? theme.textPrimary : theme.textSecondary)};
+  color: ${({ theme, active }) => (active ? theme.neutral1 : theme.neutral2)};
 `
+
+function convertTimePeriodToHistoryDuration(timePeriod: TimePeriod): HistoryDuration {
+  switch (timePeriod) {
+    case TimePeriod.OneDay:
+      return HistoryDuration.Day
+    case TimePeriod.SevenDays:
+      return HistoryDuration.Week
+    case TimePeriod.ThirtyDays:
+      return HistoryDuration.Month
+    case TimePeriod.AllTime:
+      return HistoryDuration.Max
+    default:
+      return HistoryDuration.Day
+  }
+}
 
 const TrendingCollections = () => {
   const [timePeriod, setTimePeriod] = useState<TimePeriod>(TimePeriod.OneDay)
   const [isEthToggled, setEthToggled] = useState(true)
 
-  const { isSuccess, data } = useQuery(
-    ['trendingCollections', timePeriod],
-    () => {
-      return fetchTrendingCollections({ volumeType: 'eth', timePeriod, size: 100 })
-    },
-    {
-      refetchOnReconnect: false,
-      refetchOnWindowFocus: false,
-      refetchOnMount: false,
-      refetchInterval: 5000,
-    }
+  const { data: trendingCollections, loading: trendingCollectionsAreLoading } = useTrendingCollections(
+    100,
+    convertTimePeriodToHistoryDuration(timePeriod)
   )
 
-  const { data: usdPrice } = useQuery(['fetchPrice', {}], () => fetchPrice(), {
-    refetchOnReconnect: false,
-    refetchOnWindowFocus: false,
-    refetchOnMount: false,
-    refetchInterval: ms`1m`,
-  })
+  const ethUsdPrice = useNativeUsdPrice()
 
-  const trendingCollections = useMemo(() => {
-    if (isSuccess && data) {
-      return data.map((d) => ({
+  const trendingCollectionColumns = useMemo(() => {
+    if (!trendingCollectionsAreLoading && trendingCollections) {
+      return trendingCollections.map((d) => ({
         ...d,
         collection: {
           name: d.name,
@@ -114,15 +115,14 @@ const TrendingCollections = () => {
         },
         owners: {
           value: d.owners,
-          change: d.ownersChange,
         },
         sales: d.sales,
         totalSupply: d.totalSupply,
         denomination: isEthToggled ? Denomination.ETH : Denomination.USD,
-        usdPrice,
+        usdPrice: ethUsdPrice,
       }))
     } else return [] as CollectionTableColumn[]
-  }, [data, isSuccess, isEthToggled, usdPrice])
+  }, [trendingCollections, trendingCollectionsAreLoading, isEthToggled, ethUsdPrice])
 
   return (
     <ExploreContainer>
@@ -156,7 +156,7 @@ const TrendingCollections = () => {
           </Selector>
         </Filter>
       </FiltersRow>
-      <CollectionTable data={trendingCollections} timePeriod={timePeriod} />
+      <CollectionTable data={trendingCollectionColumns} timePeriod={timePeriod} />
     </ExploreContainer>
   )
 }

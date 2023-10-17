@@ -1,47 +1,35 @@
-import { sendAnalyticsEvent } from '@uniswap/analytics'
-import { EventName } from '@uniswap/analytics-events'
-import { formatUSDPrice } from '@uniswap/conedison/format'
-import { useWeb3React } from '@web3-react/core'
+import { InterfaceEventName } from '@uniswap/analytics-events'
+import { sendAnalyticsEvent } from 'analytics'
 import clsx from 'clsx'
-import AssetLogo from 'components/Logo/AssetLogo'
-import { L2NetworkLogo, LogoContainer } from 'components/Tokens/TokenTable/TokenRow'
+import QueryTokenLogo from 'components/Logo/QueryTokenLogo'
 import TokenSafetyIcon from 'components/TokenSafety/TokenSafetyIcon'
-import { getChainInfo } from 'constants/chainInfo'
-import { NATIVE_CHAIN_ID } from 'constants/tokens'
-import { checkWarning } from 'constants/tokenSafety'
+import { checkSearchTokenWarning } from 'constants/tokenSafety'
+import { useInfoExplorePageEnabled } from 'featureFlags/flags/infoExplore'
+import { Chain, TokenStandard } from 'graphql/data/__generated__/types-and-hooks'
+import { SearchToken } from 'graphql/data/SearchTokens'
 import { getTokenDetailsURL } from 'graphql/data/util'
 import { Box } from 'nft/components/Box'
 import { Column, Row } from 'nft/components/Flex'
 import { VerifiedIcon } from 'nft/components/icons'
 import { vars } from 'nft/css/sprinkles.css'
-import { useSearchHistory } from 'nft/hooks'
-import { FungibleToken, GenieCollection } from 'nft/types'
+import { GenieCollection } from 'nft/types'
 import { ethNumberStandardFormatter } from 'nft/utils/currency'
 import { putCommas } from 'nft/utils/putCommas'
 import { useCallback, useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import styled from 'styled-components/macro'
+import styled from 'styled-components'
+import { ThemedText } from 'theme/components'
+import { useFormatter } from 'utils/formatNumbers'
 
-import { getDeltaArrow } from '../Tokens/TokenDetails/PriceChart'
+import { DeltaArrow, DeltaText } from '../Tokens/TokenDetails/Delta'
+import { useAddRecentlySearchedAsset } from './RecentlySearchedAssets'
 import * as styles from './SearchBar.css'
 
-const StyledLogoContainer = styled(LogoContainer)`
-  margin-right: 8px;
-`
 const PriceChangeContainer = styled.div`
   display: flex;
   align-items: center;
-`
-
-const PriceChangeText = styled.span<{ isNegative: boolean }>`
-  font-size: 14px;
-  line-height: 20px;
-  color: ${({ theme, isNegative }) => (isNegative ? theme.accentFailure : theme.accentSuccess)};
-`
-
-const ArrowCell = styled.span`
-  padding-top: 5px;
-  padding-right: 3px;
+  padding-top: 4px;
+  gap: 2px;
 `
 
 interface CollectionRowProps {
@@ -63,16 +51,15 @@ export const CollectionRow = ({
 }: CollectionRowProps) => {
   const [brokenImage, setBrokenImage] = useState(false)
   const [loaded, setLoaded] = useState(false)
-  const addToSearchHistory = useSearchHistory(
-    (state: { addItem: (item: FungibleToken | GenieCollection) => void }) => state.addItem
-  )
+
+  const addRecentlySearchedAsset = useAddRecentlySearchedAsset()
   const navigate = useNavigate()
 
   const handleClick = useCallback(() => {
-    addToSearchHistory(collection)
+    addRecentlySearchedAsset({ ...collection, isNft: true, chain: Chain.Ethereum })
     toggleOpen()
-    sendAnalyticsEvent(EventName.NAVBAR_RESULT_SELECTED, { ...eventProperties })
-  }, [addToSearchHistory, collection, toggleOpen, eventProperties])
+    sendAnalyticsEvent(InterfaceEventName.NAVBAR_RESULT_SELECTED, { ...eventProperties })
+  }, [addRecentlySearchedAsset, collection, toggleOpen, eventProperties])
 
   useEffect(() => {
     const keyDownHandler = (event: KeyboardEvent) => {
@@ -130,17 +117,8 @@ export const CollectionRow = ({
   )
 }
 
-function useBridgedAddress(token: FungibleToken): [string | undefined, number | undefined, string | undefined] {
-  const { chainId: connectedChainId } = useWeb3React()
-  const bridgedAddress = connectedChainId ? token.extensions?.bridgeInfo?.[connectedChainId]?.tokenAddress : undefined
-  if (bridgedAddress && connectedChainId) {
-    return [bridgedAddress, connectedChainId, getChainInfo(connectedChainId)?.circleLogoUrl]
-  }
-  return [undefined, undefined, undefined]
-}
-
 interface TokenRowProps {
-  token: FungibleToken
+  token: SearchToken
   isHovered: boolean
   setHoveredIndex: (index: number | undefined) => void
   toggleOpen: () => void
@@ -149,19 +127,21 @@ interface TokenRowProps {
 }
 
 export const TokenRow = ({ token, isHovered, setHoveredIndex, toggleOpen, index, eventProperties }: TokenRowProps) => {
-  const addToSearchHistory = useSearchHistory(
-    (state: { addItem: (item: FungibleToken | GenieCollection) => void }) => state.addItem
-  )
+  const addRecentlySearchedAsset = useAddRecentlySearchedAsset()
   const navigate = useNavigate()
+  const { formatFiatPrice, formatPercent } = useFormatter()
 
   const handleClick = useCallback(() => {
-    addToSearchHistory(token)
-    toggleOpen()
-    sendAnalyticsEvent(EventName.NAVBAR_RESULT_SELECTED, { ...eventProperties })
-  }, [addToSearchHistory, toggleOpen, token, eventProperties])
+    const address = !token.address && token.standard === TokenStandard.Native ? 'NATIVE' : token.address
+    address && addRecentlySearchedAsset({ address, chain: token.chain })
 
-  const [bridgedAddress, bridgedChain, L2Icon] = useBridgedAddress(token)
-  const tokenDetailsPath = getTokenDetailsURL(bridgedAddress ?? token.address, undefined, bridgedChain ?? token.chainId)
+    toggleOpen()
+    sendAnalyticsEvent(InterfaceEventName.NAVBAR_RESULT_SELECTED, { ...eventProperties })
+  }, [addRecentlySearchedAsset, token, toggleOpen, eventProperties])
+
+  const isInfoExplorePageEnabled = useInfoExplorePageEnabled()
+
+  const tokenDetailsPath = getTokenDetailsURL({ ...token, isInfoExplorePageEnabled })
   // Close the modal on escape
   useEffect(() => {
     const keyDownHandler = (event: KeyboardEvent) => {
@@ -177,10 +157,9 @@ export const TokenRow = ({ token, isHovered, setHoveredIndex, toggleOpen, index,
     }
   }, [toggleOpen, isHovered, token, navigate, handleClick, tokenDetailsPath])
 
-  const arrow = getDeltaArrow(token.price24hChange, 18)
-
   return (
     <Link
+      data-testid={`searchbar-token-row-${token.chain}-${token.address ?? 'NATIVE'}`}
       to={tokenDetailsPath}
       onClick={handleClick}
       onMouseEnter={() => !isHovered && setHoveredIndex(index)}
@@ -189,39 +168,37 @@ export const TokenRow = ({ token, isHovered, setHoveredIndex, toggleOpen, index,
       style={{ background: isHovered ? vars.color.lightGrayOverlay : 'none' }}
     >
       <Row style={{ width: '65%' }}>
-        <StyledLogoContainer>
-          <AssetLogo
-            isNative={token.address === NATIVE_CHAIN_ID}
-            address={token.address}
-            chainId={token.chainId}
-            symbol={token.symbol}
-            size="36px"
-            backupImg={token.logoURI}
-          />
-          <L2NetworkLogo networkUrl={L2Icon} size="16px" />
-        </StyledLogoContainer>
+        <QueryTokenLogo
+          token={token}
+          symbol={token.symbol}
+          size="36px"
+          backupImg={token.project?.logoUrl}
+          style={{ marginRight: '8px' }}
+        />
         <Column className={styles.suggestionPrimaryContainer}>
           <Row gap="4" width="full">
             <Box className={styles.primaryText}>{token.name}</Box>
-            <TokenSafetyIcon warning={checkWarning(token.address)} />
+            <TokenSafetyIcon warning={checkSearchTokenWarning(token)} />
           </Row>
           <Box className={styles.secondaryText}>{token.symbol}</Box>
         </Column>
       </Row>
 
       <Column className={styles.suggestionSecondaryContainer}>
-        {token.priceUsd && (
-          <Row gap="4">
-            <Box className={styles.primaryText}>{formatUSDPrice(token.priceUsd)}</Box>
-          </Row>
-        )}
-        {token.price24hChange && (
-          <PriceChangeContainer>
-            <ArrowCell>{arrow}</ArrowCell>
-            <PriceChangeText isNegative={token.price24hChange < 0}>
-              {Math.abs(token.price24hChange).toFixed(2)}%
-            </PriceChangeText>
-          </PriceChangeContainer>
+        {!!token.market?.price?.value && (
+          <>
+            <Row gap="4">
+              <Box className={styles.primaryText}>{formatFiatPrice({ price: token.market.price.value })}</Box>
+            </Row>
+            <PriceChangeContainer>
+              <DeltaArrow delta={token.market?.pricePercentChange?.value} />
+              <ThemedText.BodySmall>
+                <DeltaText delta={token.market?.pricePercentChange?.value}>
+                  {formatPercent(Math.abs(token.market?.pricePercentChange?.value ?? 0))}
+                </DeltaText>
+              </ThemedText.BodySmall>
+            </PriceChangeContainer>
+          </>
         )}
       </Column>
     </Link>
@@ -235,13 +212,13 @@ export const SkeletonRow = () => {
         <Box className={styles.imageHolder} />
         <Column gap="4" width="full">
           <Row justifyContent="space-between">
-            <Box borderRadius="round" height="20" background="backgroundModule" style={{ width: '180px' }} />
-            <Box borderRadius="round" height="20" width="48" background="backgroundModule" />
+            <Box borderRadius="round" height="20" background="surface2" style={{ width: '180px' }} />
+            <Box borderRadius="round" height="20" width="48" background="surface2" />
           </Row>
 
           <Row justifyContent="space-between">
-            <Box borderRadius="round" height="16" width="120" background="backgroundModule" />
-            <Box borderRadius="round" height="16" width="48" background="backgroundModule" />
+            <Box borderRadius="round" height="16" width="120" background="surface2" />
+            <Box borderRadius="round" height="16" width="48" background="surface2" />
           </Row>
         </Column>
       </Row>
